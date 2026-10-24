@@ -2,7 +2,7 @@
 +++ b/iokit/bsddev/IOKitBSDInit.cpp
 @@ -679,6 +679,7 @@
  	int xchar, dchar;
- 
+
  	// stall here for anyone matching on the IOBSD resource to finish (filesystems)
 +#if !defined(ARM64_BOARD_CONFIG_LAVENDER)
  	matching = IOService::serviceMatching(gIOResourcesKey);
@@ -13,12 +13,47 @@
  	matching->release();
  	matching = NULL;
 +#endif
- 
+
  	if (mountAttempts++) {
  		IOLog("mount(%d) failed\n", mountAttempts);
 --- a/bsd/dev/santoni_sdhci.c
 +++ b/bsd/dev/santoni_sdhci.c
-@@ -793,21 +793,13 @@
+@@ -562,6 +562,10 @@ sdhci_wait_data(uint32_t bit)
+ 			return 0;
+ 		}
+ 		if (mach_absolute_time() > deadline) {
++#if defined(ARM64_BOARD_CONFIG_LAVENDER)
++			printf("SANTONI SDHCI: wait_data timed out for bit 0x%08x (INT_STATUS 0x%08x, PRESENT_STATE 0x%08x)\n",
++			    bit, hc_rd(SDHCI_INT_STATUS), hc_rd(SDHCI_PRESENT_STATE));
++#endif
+ 			return ETIMEDOUT;
+ 		}
+ 		delay(1);
+@@ -673,7 +677,11 @@ sdhci_read_pio(uint8_t index, uint32_t arg, uint32_t count, void *buf)
+ 		tr_mode = SDHCI_TRNS_READ | SDHCI_TRNS_BLK_CNT_EN |
+ 		    SDHCI_TRNS_MULTI | SDHCI_TRNS_AUTO_CMD12;
+ 	} else {
++#if defined(ARM64_BOARD_CONFIG_LAVENDER)
++		tr_mode = SDHCI_TRNS_READ | SDHCI_TRNS_BLK_CNT_EN;
++#else
+ 		tr_mode = SDHCI_TRNS_READ;
++#endif
+ 	}
+ 	error = sdhci_cmd(index, arg, tr_mode,
+ 	    SDHCI_CMD_RESP_SHORT | SDHCI_CMD_CRC | SDHCI_CMD_INDEX |
+@@ -723,7 +731,11 @@ sdhci_write_pio(uint32_t lba, uint32_t count, const void *buf)
+ 		tr_mode = SDHCI_TRNS_MULTI | SDHCI_TRNS_BLK_CNT_EN |
+ 		    SDHCI_TRNS_AUTO_CMD12;
+ 	} else {
++#if defined(ARM64_BOARD_CONFIG_LAVENDER)
++		tr_mode = SDHCI_TRNS_BLK_CNT_EN;
++#else
+ 		tr_mode = 0;
++#endif
+ 	}
+ 
+ 	error = sdhci_cmd(index, lba, tr_mode,
+@@ -793,21 +805,13 @@ sdhci_read_response128(uint8_t index, uint32_t arg, uint32_t out[4])
  static int
  sdhci_core_check(void)
  {
@@ -43,7 +78,7 @@
  	return 0;
  #else
  	if (mci_version == 0 || mci_version == 0xffffffffu) {
-@@ -844,6 +836,13 @@
+@@ -844,6 +848,13 @@ sdhci_snapshot_untouched(void)
  	uint32_t dll = hc_rd(CORE_DLL_CONFIG);
  	uint32_t status = hc_rd(CORE_DLL_STATUS);
  
@@ -57,7 +92,7 @@
  	printf("SANTONI SDHCI: probe step 0: HC_MODE 0x%08x, "
  	    "MCI_POWER 0x%08x, MCI_CLK 0x%08x, VENDOR_SPEC 0x%08x "
  	    "(MCLK sel %u, SELECT_IN 0x%x), DLL_CONFIG 0x%08x "
-@@ -851,6 +850,7 @@
+@@ -851,6 +862,7 @@ sdhci_snapshot_untouched(void)
  	    core_rd(CORE_MCI_POWER), core_rd(CORE_MCI_CLK), vendor,
  	    (vendor & CORE_HC_MCLK_SEL_MASK) >> 8,
  	    (vendor & CORE_HC_SELECT_IN_MASK) >> 19, dll, status);
@@ -65,7 +100,7 @@
  	printf("SANTONI SDHCI: probe step 0: GCC sdcc1_apps CMD 0x%08x "
  	    "CFG 0x%08x M 0x%02x N 0x%02x D 0x%02x CBCR 0x%08x\n",
  	    gcc_rd(GCC_SDCC1_APPS_CMD_RCGR),
-@@ -1061,6 +1061,11 @@
+@@ -1061,6 +1073,11 @@ sdhci_set_legacy_host(const char *why)
  static int
  sdhci_pwrctl_ack(const char *what, bool wait)
  {
@@ -77,7 +112,7 @@
  	uint64_t deadline;
  	uint32_t pending, ack;
  	int retry;
-@@ -1112,6 +1117,7 @@
+@@ -1112,6 +1129,7 @@ sdhci_pwrctl_ack(const char *what, bool wait)
  	printf("SANTONI SDHCI: PWRCTL %s did not clear (STATUS 0x%08x): "
  	    "power handshake failed\n", what, core_rd(CORE_PWRCTL_STATUS));
  	return ETIMEDOUT;
@@ -85,7 +120,7 @@
  }
  
  static int
-@@ -1320,7 +1326,7 @@
+@@ -1320,7 +1338,7 @@ sdhci_take_over(void)
  {
  	uint16_t handoff_hc2;
  	uint8_t handoff_ctrl, handoff_timeout;
@@ -94,7 +129,7 @@
  	uint64_t deadline;
  	int error, err0, err_cmd1;
  
-@@ -1332,6 +1338,7 @@
+@@ -1332,6 +1350,7 @@ sdhci_take_over(void)
  	/* Probe step 0: the only true pre-write snapshot. */
  	sdhci_snapshot_untouched();
  
@@ -102,7 +137,7 @@
  	/* Disable power IRQ generation on GIC while polled */
  	core_wr(CORE_PWRCTL_MASK, 0);
  
-@@ -1342,6 +1349,10 @@
+@@ -1342,6 +1361,10 @@ sdhci_take_over(void)
  	 */
  	mci_power = core_rd(CORE_MCI_POWER);
  	mci_clk = core_rd(CORE_MCI_CLK);
@@ -113,7 +148,7 @@
  
  	/*
  	 * Step 1: vendor clock and pad supply before HC mode, in Linux's order
-@@ -1379,6 +1390,24 @@
+@@ -1379,6 +1402,24 @@ sdhci_take_over(void)
  	 * Step 3: full reset of the HC block (LK sdhci_msm_init and Linux sdhci_init
  	 * do SOFT_RESET_ALL here). GCC clocks are outside the SDHCI reset domain.
  	 */
@@ -138,7 +173,7 @@
  	hc_wr8(SDHCI_SOFTWARE_RESET, SDHCI_RESET_ALL);
  	nanoseconds_to_absolutetime(RESET_TIMEOUT_NS, &deadline);
  	deadline += mach_absolute_time();
-@@ -1390,6 +1419,7 @@
+@@ -1390,6 +1431,7 @@ sdhci_take_over(void)
  		}
  		delay(1);
  	}
@@ -146,7 +181,7 @@
  	/* RESET_ALL turns off bus power; acknowledge the BUS_OFF request */
  	(void)sdhci_pwrctl_ack("BUS_OFF", true);
  
-@@ -1432,6 +1462,14 @@
+@@ -1432,6 +1474,14 @@ sdhci_take_over(void)
  	hc_wr(SDHCI_SIGNAL_ENABLE, 0);
  	hc_wr(SDHCI_INT_STATUS, hc_rd(SDHCI_INT_STATUS));
  
@@ -161,7 +196,7 @@
  	printf("SANTONI SDHCI: takeover complete (HC_MODE 0x%08x, "
  	    "VENDOR_SPEC 0x%08x, legacy MCI_CLK 0x%08x, MCI_POWER 0x%08x, "
  	    "POWER_CONTROL 0x%02x, CLOCK_CONTROL 0x%04x, HOST_CONTROL 0x%02x, "
-@@ -1440,6 +1478,7 @@
+@@ -1440,6 +1490,7 @@ sdhci_take_over(void)
  	    mci_power, hc_rd8(SDHCI_POWER_CONTROL),
  	    hc_rd16(SDHCI_CLOCK_CONTROL), hc_rd8(SDHCI_HOST_CONTROL),
  	    hc_rd16(SDHCI_HOST_CONTROL2), hc_rd8(SDHCI_TIMEOUT_CONTROL));
@@ -169,3 +204,17 @@
  
  	/*
  	 * Probe step 2: close the card clock, force the host back to the
+@@ -1814,6 +1865,13 @@ sdhci_enumerate_card(void)
+ 		printf("SANTONI SDHCI: enumeration: CMD7 failed (%d)\n", error);
+ 		return error;
+ 	}
++#if defined(ARM64_BOARD_CONFIG_LAVENDER)
++	error = sdhci_wait_card_ready(se.rca, "CMD7");
++	if (error) {
++		printf("SANTONI SDHCI: enumeration: CMD7 wait ready failed (%d)\n", error);
++		return error;
++	}
++#endif
+ 	printf("SANTONI SDHCI: enumeration: card selected (TRAN)\n");
+ 
+ 	printf("SANTONI SDHCI: enumeration: CMD8 SEND_EXT_CSD "
