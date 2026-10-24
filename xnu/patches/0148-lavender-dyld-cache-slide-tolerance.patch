@@ -1,0 +1,86 @@
+--- a/osfmk/vm/vm_shared_region.c
++++ b/osfmk/vm/vm_shared_region.c
+@@ -2977,6 +2977,11 @@ rebase_chain_32(
+ 	uint32_t slide_amount,
+ 	vm_shared_region_slide_info_entry_v2_t s_info)
+ {
++#if defined(ARM64_BOARD_CONFIG_SANTONI) || defined(ARM64_BOARD_CONFIG_LAVENDER)
++	if (slide_amount == 0) {
++		return KERN_SUCCESS;
++	}
++#endif
+ 	const uint32_t last_page_offset = PAGE_SIZE_FOR_SR_SLIDE - sizeof(uint32_t);
+ 
+ 	const uint32_t delta_mask = (uint32_t)(s_info->delta_mask);
+@@ -3004,8 +3009,13 @@ rebase_chain_32(
+ 	}
+ 
+ 	/* If the offset went past the end of the page, then the slide data is invalid. */
+ 	if (page_offset > last_page_offset) {
++#if defined(ARM64_BOARD_CONFIG_SANTONI) || defined(ARM64_BOARD_CONFIG_LAVENDER)
++		/* 4K translation granule tolerance for 16K dyld shared cache structures */
++		return KERN_SUCCESS;
++#else
+ 		return KERN_FAILURE;
++#endif
+ 	}
+ 	return KERN_SUCCESS;
+ }
+@@ -3020,6 +3030,11 @@ rebase_chain_64(
+ 	uint32_t slide_amount,
+ 	vm_shared_region_slide_info_entry_v2_t s_info)
+ {
++#if defined(ARM64_BOARD_CONFIG_SANTONI) || defined(ARM64_BOARD_CONFIG_LAVENDER)
++	if (slide_amount == 0) {
++		return KERN_SUCCESS;
++	}
++#endif
+ 	const uint32_t last_page_offset = PAGE_SIZE_FOR_SR_SLIDE - sizeof(uint64_t);
+ 
+ 	const uint64_t delta_mask = s_info->delta_mask;
+@@ -3055,7 +3070,12 @@ rebase_chain_64(
+ 		value += slide_amount;
+ 		memcpy(loc, &value, sizeof(value));
+ 	} else if (page_offset > last_page_offset) {
++#if defined(ARM64_BOARD_CONFIG_SANTONI) || defined(ARM64_BOARD_CONFIG_LAVENDER)
++		/* 4K translation granule tolerance for 16K dyld shared cache structures */
++		return KERN_SUCCESS;
++#else
+ 		return KERN_FAILURE;
++#endif
+ 	}
+ 
+ 	return KERN_SUCCESS;
+@@ -3094,5 +3114,10 @@ static kern_return_t
+ vm_shared_region_slide_page_v2(vm_shared_region_slide_info_t si, vm_offset_t vaddr, uint32_t pageIndex)
+ {
++#if defined(ARM64_BOARD_CONFIG_SANTONI) || defined(ARM64_BOARD_CONFIG_LAVENDER)
++	if (si->si_slide == 0) {
++		return KERN_SUCCESS;
++	}
++#endif
+ 	vm_shared_region_slide_info_entry_v2_t s_info = &si->si_slide_info_entry->v2;
+ 	const uint32_t slide_amount = si->si_slide;
+ 
+@@ -3168,5 +3193,10 @@ vm_shared_region_slide_page_v3(
+ 	uint64_t jop_key)
+ {
++#if defined(ARM64_BOARD_CONFIG_SANTONI) || defined(ARM64_BOARD_CONFIG_LAVENDER)
++	if (si->si_slide == 0) {
++		return KERN_SUCCESS;
++	}
++#endif
+ 	vm_shared_region_slide_info_entry_v3_t s_info = &si->si_slide_info_entry->v3;
+ 	const uint32_t slide_amount = si->si_slide;
+ 
+@@ -3312,5 +3342,10 @@ static kern_return_t
+ vm_shared_region_slide_page_v4(vm_shared_region_slide_info_t si, vm_offset_t vaddr, uint32_t pageIndex)
+ {
++#if defined(ARM64_BOARD_CONFIG_SANTONI) || defined(ARM64_BOARD_CONFIG_LAVENDER)
++	if (si->si_slide == 0) {
++		return KERN_SUCCESS;
++	}
++#endif
+ 	vm_shared_region_slide_info_entry_v4_t s_info = &si->si_slide_info_entry->v4;
+ 	const uint32_t slide_amount = si->si_slide;
+ 
