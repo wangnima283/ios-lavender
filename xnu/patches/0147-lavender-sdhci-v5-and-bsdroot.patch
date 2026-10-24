@@ -49,22 +49,25 @@
  			return ETIMEDOUT;
  		}
  		delay(1);
-@@ -587,6 +601,10 @@ sdhci_wait_transfer_complete(void)
+@@ -587,6 +601,11 @@ sdhci_wait_transfer_complete(void)
  			return 0;
  		}
  		if (mach_absolute_time() > deadline) {
 +#if defined(ARM64_BOARD_CONFIG_LAVENDER)
 +			printf("SANTONI SDHCI: wait_transfer_complete timed out (INT_STATUS 0x%08x, PRESENT_STATE 0x%08x)\n",
 +			    hc_rd(SDHCI_INT_STATUS), hc_rd(SDHCI_PRESENT_STATE));
++			hc_wr8(SDHCI_SOFTWARE_RESET, SDHCI_RESET_DATA);
 +#endif
  			return ETIMEDOUT;
  		}
  		delay(1);
-@@ -666,14 +684,22 @@ sdhci_read_pio(uint8_t index, uint32_t arg, uint32_t count, void *buf)
+@@ -666,35 +686,56 @@ sdhci_read_pio(uint8_t index, uint32_t arg, uint32_t count, void *buf)
  		index = 18;
  	}
  
 +#if defined(ARM64_BOARD_CONFIG_LAVENDER)
++	/* Disable alternative FIFO (CQE) so data goes to standard SDHCI buffer */
++	hc_wr(0x250, hc_rd(0x250) & ~(1u << 10));
 +	hc_wr(SDHCI_BLOCK_SIZE, ((uint32_t)count << 16) | (uint32_t)SDHCI_MAKE_BLKSZ(0, SDHCI_BLOCK));
 +#else
  	hc_wr16(SDHCI_BLOCK_SIZE, SDHCI_MAKE_BLKSZ(0, SDHCI_BLOCK));
@@ -83,11 +86,44 @@
  	}
  	error = sdhci_cmd(index, arg, tr_mode,
  	    SDHCI_CMD_RESP_SHORT | SDHCI_CMD_CRC | SDHCI_CMD_INDEX |
-@@ -716,14 +742,22 @@ sdhci_write_pio(uint32_t lba, uint32_t count, const void *buf)
+ 	    SDHCI_CMD_DATA, NULL);
+ 	if (error) {
+ 		sdhci_recover();
+ 		return error;
+ 	}
+ 
+ 	for (uint32_t b = 0; b < count; b++) {
+ 		error = sdhci_wait_data(SDHCI_INT_BRR);
+ 		if (error) {
+ 			sdhci_recover();
+ 			return error;
+ 		}
+ 		for (uint32_t i = 0; i < SDHCI_BLOCK / 4; i++) {
+ 			dst[b * (SDHCI_BLOCK / 4) + i] = hc_rd(SDHCI_BUFFER);
+ 		}
+ 	}
++#if defined(ARM64_BOARD_CONFIG_LAVENDER)
++	printf("SANTONI SDHCI: read %u words: 0x%08x 0x%08x 0x%08x 0x%08x\n",
++	    SDHCI_BLOCK / 4, dst[0], dst[1], dst[2], dst[3]);
++#endif
+ 	error = sdhci_wait_transfer_complete();
++#if defined(ARM64_BOARD_CONFIG_LAVENDER)
++	hc_wr8(SDHCI_SOFTWARE_RESET, SDHCI_RESET_DATA);
++	if (error == ETIMEDOUT && count == 1 && (dst[0] != 0 || dst[1] != 0 || dst[2] != 0)) {
++		printf("SANTONI SDHCI: single-block PIO buffer read valid; ignoring missing TC quirk\n");
++		error = 0;
++	}
++#endif
+ 	if (error) {
+ 		sdhci_recover();
+ 		return error;
+ 	}
+@@ -716,14 +742,23 @@ sdhci_write_pio(uint32_t lba, uint32_t count, const void *buf)
  	if (count == 0 || count > BOUNCE_SIZE / SDHCI_BLOCK) {
  		return EINVAL;
  	}
 +#if defined(ARM64_BOARD_CONFIG_LAVENDER)
++	hc_wr(0x250, hc_rd(0x250) & ~(1u << 10));
 +	hc_wr(SDHCI_BLOCK_SIZE, ((uint32_t)count << 16) | (uint32_t)SDHCI_MAKE_BLKSZ(0, SDHCI_BLOCK));
 +#else
  	hc_wr16(SDHCI_BLOCK_SIZE, SDHCI_MAKE_BLKSZ(0, SDHCI_BLOCK));
@@ -234,15 +270,17 @@
  	/* RESET_ALL turns off bus power; acknowledge the BUS_OFF request */
  	(void)sdhci_pwrctl_ack("BUS_OFF", true);
  
-@@ -1432,6 +1496,14 @@ sdhci_take_over(void)
+@@ -1432,6 +1496,16 @@ sdhci_take_over(void)
  	hc_wr(SDHCI_SIGNAL_ENABLE, 0);
  	hc_wr(SDHCI_INT_STATUS, hc_rd(SDHCI_INT_STATUS));
  
 +#if defined(ARM64_BOARD_CONFIG_LAVENDER)
-+	printf("SANTONI SDHCI: takeover complete (VENDOR_SPEC 0x%08x, "
++	/* Disable alternative FIFO (CQE) left enabled by ABL */
++	hc_wr(0x250, hc_rd(0x250) & ~(1u << 10));
++	printf("SANTONI SDHCI: takeover complete (VENDOR_SPEC 0x%08x, VENDOR_SPEC3 0x%08x, "
 +	    "POWER_CONTROL 0x%02x, CLOCK_CONTROL 0x%04x, HOST_CONTROL 0x%02x, "
 +	    "HOST_CONTROL2 0x%04x, TIMEOUT_CONTROL 0x%02x)\n",
-+	    hc_rd(CORE_VENDOR_SPEC), hc_rd8(SDHCI_POWER_CONTROL),
++	    hc_rd(CORE_VENDOR_SPEC), hc_rd(0x250), hc_rd8(SDHCI_POWER_CONTROL),
 +	    hc_rd16(SDHCI_CLOCK_CONTROL), hc_rd8(SDHCI_HOST_CONTROL),
 +	    hc_rd16(SDHCI_HOST_CONTROL2), hc_rd8(SDHCI_TIMEOUT_CONTROL));
 +#else
