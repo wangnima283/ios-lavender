@@ -61,7 +61,7 @@
  			return ETIMEDOUT;
  		}
  		delay(1);
-@@ -666,35 +686,56 @@ sdhci_read_pio(uint8_t index, uint32_t arg, uint32_t count, void *buf)
+@@ -666,35 +686,57 @@ sdhci_read_pio(uint8_t index, uint32_t arg, uint32_t count, void *buf)
  		index = 18;
  	}
  
@@ -108,10 +108,11 @@
 +#endif
  	error = sdhci_wait_transfer_complete();
 +#if defined(ARM64_BOARD_CONFIG_LAVENDER)
-+	hc_wr8(SDHCI_SOFTWARE_RESET, SDHCI_RESET_DATA);
-+	if (error == ETIMEDOUT && count == 1 && (dst[0] != 0 || dst[1] != 0 || dst[2] != 0)) {
-+		printf("SANTONI SDHCI: single-block PIO buffer read valid; ignoring missing TC quirk\n");
-+		error = 0;
++	if (error) {
++		hc_wr8(SDHCI_SOFTWARE_RESET, SDHCI_RESET_DATA);
++		if (error == ETIMEDOUT && count == 1 && (dst[0] != 0 || dst[1] != 0 || dst[2] != 0)) {
++			error = 0;
++		}
 +	}
 +#endif
  	if (error) {
