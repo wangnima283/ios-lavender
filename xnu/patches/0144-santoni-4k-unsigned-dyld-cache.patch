@@ -6,7 +6,7 @@ index 9b553be..22f56bb 100644
  	if (ntohl(cd->magic) != CSMAGIC_CODEDIRECTORY) {
  		return EBADEXEC;
  	}
-+#if defined(ARM64_BOARD_CONFIG_SANTONI)
++#if defined(ARM64_BOARD_CONFIG_SANTONI) || defined(ARM64_BOARD_CONFIG_LAVENDER)
 +	/*
 +	 * iOS 16's dyld shared cache is signed with 16 KiB hash units
 +	 * (pageSize == 14) while Santoni runs a 4 KiB translation granule, so
@@ -33,7 +33,7 @@ index 9b553be..22f56bb 100644
  		return error;
  	}
  
-+#if defined(ARM64_BOARD_CONFIG_SANTONI)
++#if defined(ARM64_BOARD_CONFIG_SANTONI) || defined(ARM64_BOARD_CONFIG_LAVENDER)
 +	/*
 +	 * pageSize 14 means 16 KiB hash units on 4 KiB pages: cs_validate_hash()
 +	 * would hash a whole 16 KiB unit out of a single mapped 4 KiB page and
@@ -55,7 +55,7 @@ index db1d613..efd1699 100644
  		return KERN_FAILURE;
  	}
  
-+#if defined(ARM64_BOARD_CONFIG_SANTONI)
++#if defined(ARM64_BOARD_CONFIG_SANTONI) || defined(ARM64_BOARD_CONFIG_LAVENDER)
 +	/*
 +	 * The 16 KiB-signed iOS 16 dyld shared cache executes from 4 KiB pages
 +	 * on Santoni. Disable code-signing enforcement on the region's sub map
