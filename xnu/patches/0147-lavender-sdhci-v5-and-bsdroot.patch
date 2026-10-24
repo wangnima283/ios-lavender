@@ -103,8 +103,8 @@
  		}
  	}
 +#if defined(ARM64_BOARD_CONFIG_LAVENDER)
-+	printf("SANTONI SDHCI: read %u words: 0x%08x 0x%08x 0x%08x 0x%08x\n",
-+	    SDHCI_BLOCK / 4, dst[0], dst[1], dst[2], dst[3]);
++	/* hot data path: keep silent for high-speed PIO throughput */
++	(void)dst;
 +#endif
  	error = sdhci_wait_transfer_complete();
 +#if defined(ARM64_BOARD_CONFIG_LAVENDER)
