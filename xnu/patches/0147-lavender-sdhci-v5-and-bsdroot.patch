@@ -16,18 +16,6 @@
  
  	if (mountAttempts++) {
  		IOLog("mount(%d) failed\n", mountAttempts);
-@@ -760,7 +762,11 @@
- 					panic("ramdisk params");
- 				}
- #endif /* __LP64__ */
-+#if defined(ARM64_BOARD_CONFIG_SANTONI) || defined(ARM64_BOARD_CONFIG_LAVENDER)
-+				(void)mdevadd(-1, ramdParms[0] >> 12, (unsigned int) (ramdParms[1] >> 12), 1);
-+#else
- 				(void)mdevadd(-1, ml_static_ptovirt(ramdParms[0]) >> 12, (unsigned int) (ramdParms[1] >> 12), 0);        /* Initialize it and pass back the device number */
-+#endif
- 			}
- 			regEntry->release();                                                            /* Toss the entry */
- 		}
 --- a/bsd/dev/santoni_sdhci.c
 +++ b/bsd/dev/santoni_sdhci.c
 @@ -793,21 +793,13 @@
