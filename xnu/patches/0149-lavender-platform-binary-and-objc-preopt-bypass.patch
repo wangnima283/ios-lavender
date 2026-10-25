@@ -21,7 +21,7 @@ index 52fdc5d..e248e43 100644
  
  int
 diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
-index 13729c0..62bf2ad 100644
+index 13729c0..464ef0a 100644
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
 @@ -1659,6 +1659,9 @@ grade:
@@ -34,7 +34,7 @@ index 13729c0..62bf2ad 100644
  	if (load_result.platform_binary) {
  		if (cs_debug) {
  			printf("setting platform binary on task: pid = %d\n", proc_getpid(p));
-@@ -5739,6 +5742,23 @@ exec_extract_strings(struct image_params *imgp)
+@@ -5739,6 +5742,22 @@ exec_extract_strings(struct image_params *imgp)
  		imgp->ip_envc++;
  	}
  
@@ -42,7 +42,6 @@ index 13729c0..62bf2ad 100644
 +	{
 +		static const char *inject_envs[] = {
 +			"OBJC_DISABLE_PREOPTIMIZED_CACHES=YES",
-+			"OBJC_DISABLE_PREOPTIMIZATION=YES",
 +		};
 +		for (unsigned int ei = 0; ei < sizeof(inject_envs) / sizeof(inject_envs[0]); ei++) {
 +			if (imgp->ip_argspace >= (int)(new_ptr_size + strlen(inject_envs[ei]) + 1)) {
@@ -58,7 +57,7 @@ index 13729c0..62bf2ad 100644
  	/* Save space for envv[] NULL terminator */
  	if (imgp->ip_argspace < new_ptr_size) {
  		error = E2BIG;
-@@ -7342,6 +7362,9 @@ process_signature(proc_t p, struct image_params *imgp)
+@@ -7342,6 +7361,9 @@ process_signature(proc_t p, struct image_params *imgp)
  	 * loaded
  	 */
  	proc_lock(p);
