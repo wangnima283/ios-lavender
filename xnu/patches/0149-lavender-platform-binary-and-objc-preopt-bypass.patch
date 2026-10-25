@@ -98,6 +98,49 @@ index 13729c0..464ef0a 100644
  
  	/*
  	 * image activation may be failed due to policy
+@@ -7539,26 +7566,42 @@ process_signature(proc_t p, struct image_params *imgp)
+ 		if (kr != KERN_SUCCESS) {
+ 			error = EINVAL;
+ 			signature_failure_reason = os_reason_create(OS_REASON_EXEC, EXEC_EXIT_REASON_MACHINE_THREAD);
+ 		}
+ 	}
+ 
++#if defined(ARM64_BOARD_CONFIG_SANTONI) || defined(ARM64_BOARD_CONFIG_LAVENDER)
++	/* On Lavender/Santoni, never kill processes or panic due to code signature failure */
++	if (error != 0) {
++		error = 0;
++		if (signature_failure_reason != OS_REASON_NULL) {
++			os_reason_free(signature_failure_reason);
++			signature_failure_reason = OS_REASON_NULL;
++		}
++	}
++#endif
++
+ 	if (0 == error) {
+ 		/* The process's code signature related properties are
+ 		 * fully set up, so this is an opportune moment to log
+ 		 * platform binary execution, if desired. */
+ 		if (platform_exec_logging != 0 && csproc_get_platform_binary(p)) {
+ 			uint8_t cdhash[CS_CDHASH_LEN];
+ 			char cdhash_string[CS_CDHASH_STRING_SIZE];
+ 			proc_getcdhash(p, cdhash);
+ 			cdhash_to_string(cdhash_string, cdhash);
+ 
+ 			os_log(peLog, "CS Platform Exec Logging: Executing platform signed binary "
+ 			    "'%s' with cdhash %s\n", p->p_name, cdhash_string);
+ 		}
+ 	} else {
+ 		if (!unexpected_failure) {
+ 			proc_csflags_set(p, CS_KILLED);
+ 		}
++#if defined(ARM64_BOARD_CONFIG_SANTONI) || defined(ARM64_BOARD_CONFIG_LAVENDER)
++		if (signature_failure_reason == OS_REASON_NULL) {
++			signature_failure_reason = os_reason_create(OS_REASON_EXEC, EXEC_EXIT_REASON_SECURITY_POLICY);
++		}
++#endif
+ 		/* make very sure execution fails */
+ 		if (vfexec || spawn) {
+ 			assert(signature_failure_reason != OS_REASON_NULL);
 diff --git a/bsd/kern/kern_prot.c b/bsd/kern/kern_prot.c
 index a285876..528acff 100644
 --- a/bsd/kern/kern_prot.c
