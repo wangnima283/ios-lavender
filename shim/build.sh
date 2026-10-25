@@ -47,7 +47,7 @@ python3 ../tools/mkinit.py out/lavender-init.o out/init.macho
 
 # Ramdisk / Payload packaging
 RAMDISK="out/ramdisk.bin"
-CMDLINE="${CMDLINE:-debug=0x14e serial=3 cs_enforcement_disable=1 amfi_get_out_of_my_way=1 amfi_allow_any_signature=1 disable_kprintf_output=0 -enable_kprintf_spam sweetfb_native=1 sweetcpufreq=0 sweetbattery=0 rd=emmcroot0 emmcroot=userdata emmcrw=1 rootrw=1 unentitled_ios_sim_launch=1 ignition_level=1 wdt_test=no_user_checkin launchd_unsecure_cache=1 wdt=-1 -v keepsyms=1 sweetscan=backboardd,SpringBoard lavender}"
+CMDLINE="${CMDLINE:-debug=0x14e serial=3 cs_enforcement_disable=1 amfi_get_out_of_my_way=1 amfi_allow_any_signature=1 disable_kprintf_output=0 -enable_kprintf_spam sweetfb_native=1 sweetsample=- sweetlog=1 sweetcpufreq=0 sweetbattery=0 rd=emmcroot0 emmcroot=userdata emmcrw=1 rootrw=1 unentitled_ios_sim_launch=1 ignition_level=1 wdt_test=no_user_checkin launchd_unsecure_cache=1 wdt=-1 -v keepsyms=1 sweetscan=backboardd,SpringBoard lavender}"
 
 # Ensure a minimal ramdisk.bin is always present
 if command -v cpio >/dev/null 2>&1; then
@@ -61,7 +61,7 @@ if [ -n "$PAYLOAD" ]; then
 	magic=$(python3 -c "import sys; f=open(sys.argv[1],'rb'); b=f.read(4); print(b.hex())" "$PAYLOAD" 2>/dev/null || true)
 	if [ "$magic" = "cffaedfe" ] || [ "$magic" = "feedfacf" ]; then
 		echo "Detected raw Mach-O kernel ($PAYLOAD). Generating ADT and packing with mkpayload.py..."
-		python3 ../tools/mkadt.py out/lavender.adt
+		python3 ../tools/mkadt.py out/lavender.adt --native
 		python3 ../tools/mkpayload.py "$PAYLOAD" out/lavender.adt out/payload.bin --cmdline "$CMDLINE" --ramdisk out/init.macho
 	fi
 fi
