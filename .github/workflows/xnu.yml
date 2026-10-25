@@ -15,6 +15,9 @@ on:
       keep_going:
         description: make -k (collect all compile errors in one run)
         default: "true"
+      boot_cmdline:
+        description: Lavender XNU boot arguments (empty uses shim/build.sh defaults)
+        default: ""
   push:
     branches: [main, santoni, lavender]
     paths:
@@ -176,3 +179,93 @@ jobs:
           name: xnu-kernel
           path: out/
           if-no-files-found: warn
+
+  shim:
+    name: Lavender boot shim
+    needs: build
+    if: ${{ (inputs.machine_config || 'LAVENDER') == 'LAVENDER' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: xnu-kernel
+          path: xnu/out
+
+      - name: Install shim toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang lld llvm
+          python3 -m venv .venv
+          .venv/bin/pip install lzfse
+
+      - name: Fetch matching iPhone X product identity
+        run: |
+          # Only the 34 KiB device-tree member is fetched, with ZIP CRC checking.
+          # Apple firmware stays out of git; /product is copied into our ADT.
+          URL='https://updates.cdn-apple.com/2025FallFCS/fullrestores/122-77006/1158E502-D76D-4226-AA06-ED5E30CD1111/iPhone10,3,iPhone10,6_16.7.16_20H392_Restore.ipsw'
+          python3 tools/remotezip.py "$URL" Firmware/all_flash/DeviceTree.d22ap.im4p research/ipsw-x
+          .venv/bin/python - <<'PY'
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, 'tools')
+          import adt
+          import lzfse
+          source = Path('research/ipsw-x/Firmware/all_flash/DeviceTree.d22ap.im4p')
+          data = source.read_bytes()
+          tag, start, end = adt.der(data, 0)
+          assert tag == 0x30
+          items = []
+          while start < end:
+              tag, value_start, value_end = adt.der(data, start)
+              items.append((tag, data[value_start:value_end]))
+              start = value_end
+          assert items[0][1] == b'IM4P' and items[1][1] == b'dtre'
+          assert not any(tag == 0x04 for tag, _ in items[4:]), 'encrypted device tree'
+          raw = items[3][1]
+          if raw.startswith(b'bvx2'):
+              raw = lzfse.decompress(raw)
+          root, consumed = adt.parse(raw)
+          assert any(child.name == 'product' for child in root.children)
+          Path('research/ipsw-x/d22ap.adt').write_bytes(raw)
+          print(f'Parsed D22AP ADT: {consumed} bytes')
+          PY
+
+      - name: Compile shim and run host tests
+        env:
+          PACK_BOOTIMG: "0"
+          CMDLINE: ${{ inputs.boot_cmdline }}
+        run: |
+          test -s xnu/out/kernel.development.lavender
+          bash shim/build.sh xnu/out/kernel.development.lavender
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import os
+          out = Path('shim/out')
+          payload = (out / 'payload.bin').read_bytes()
+          record = {
+              'commit': os.environ['GITHUB_SHA'],
+              'run_id': os.environ['GITHUB_RUN_ID'],
+              'kernel_sha256': hashlib.sha256(Path('xnu/out/kernel.development.lavender').read_bytes()).hexdigest(),
+              'cmdline': payload[0x48:0x2a8].split(b'\0')[0].decode(),
+              'sha256': {name: hashlib.sha256((out / name).read_bytes()).hexdigest()
+                         for name in ('Image.gz', 'payload.bin', 'ramdisk.bin', 'lavender.adt')},
+          }
+          (out / 'build-info.json').write_text(json.dumps(record, indent=2) + '\n')
+          print(json.dumps(record, indent=2))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lavender-shim
+          path: |
+            shim/out/Image.gz
+            shim/out/payload.bin
+            shim/out/ramdisk.bin
+            shim/out/lavender.adt
+            shim/out/build-info.json
+          if-no-files-found: error

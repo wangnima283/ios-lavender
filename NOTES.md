@@ -1,5 +1,55 @@
 # iOS 16 on lavender (Redmi Note 7, Qualcomm SDM660) - working notes
 
+## Active handoff (2026-10-25): userland stall, verified baseline and fixes in progress
+
+- **Device observation:** `/storage/emulated/0/Pictures/AGC_20261025_215432634.jpg`
+  shows launchd, AppleKeyStore/MKB initialization and `exec usermanagerd`.
+  `usermanagerd` loads the mobile session (uid 501); the last visible line is
+  `UMD_INIT: FOUND NO SYNC BUBBLE UIDS:0`. No panic, backboardd execution or
+  SpringBoard execution is visible. The final line alone does not identify
+  the blocker. HFS+ lacks data protection; that warning also appeared in the
+  older Sweet bring-up and is not proof of an APFS mounting failure.
+- **User confirmations:** the photo was booted with **`fastboot boot`**, which
+  works on this Lavender. No additional root tweaks were applied after
+  flashing. The phone is currently disconnected. The user explicitly approved
+  committing/pushing these fixes to `lavender` and building through Actions.
+- **Baseline:** local HEAD `92f8e72`, five shim-only commits ahead of
+  `origin/lavender` (`55f097b`). Kernel from successful Actions run
+  `40183652166`, SHA256
+  `282cb85fec6b3ea1181db1335c92ed223a92978846c42e30b8548adfe0f21bf9`.
+  `shim/out/shim-boot.img` and `/data/local/tmp/shim-boot-springboard.img`
+  match: 6,701,056 bytes, SHA256
+  `e48c1b6e7131f491422d2ff0eb49f8b8168d614d4cc475fca2986fb90e2021ef`.
+  `/storage/emulated/0/shim-boot.img` is an older artifact; do not use it as
+  the current baseline.
+- **Confirmed regression:** patch 0150 suspends UserEventAgent (launchd's
+  `EventMonitor`), mediaserverd and thermalmonitord by default. Commit
+  `9d1179c` added `enable_all_daemons`, but `92f8e72` removed it. This can
+  strand service/event clients; hardware proof of the stall's cause is pending.
+- **Root image audit:** read-only sparse/HFSX catalog inspection of
+  `/storage/emulated/0/ios16-root-20H392.simg` confirms iOS **16.7.16 / 20H392**,
+  a 16 GiB logical image, the basic system keybag, containers and logd markers.
+  It also confirms **VirtualAudio.plugin is still enabled**, migration,
+  SpringBoard and Setup preferences are absent, and launchd still has all 532
+  jobs (including both CommCenter variants and seven `_PanicOnCrash` entries).
+  MediaToolbox's D22/D221/Default SubServerConfiguration files have not been
+  given `StartRecorderServer=false`. This is the flashed base image, not a
+  dump of the filesystem after iOS wrote user-session state. Apply
+  `tools/sweet-root-tweaks.py` to the **live mounted root**, retaining backups,
+  before claiming the port's userland preparation is complete. Do not flash
+  a sparse diff generated from this old image over the changed live volume.
+- **Code changes in progress:** daemon suspension becomes explicit opt-in,
+  UserEventAgent is never suspended by this workaround, and boot sampling
+  includes usermanagerd and UserEventAgent. Remove synthetic HID power-key
+  presses during startup. Fix the real-D22AP `/product` tuple unpacking bug
+  and reject overlong/NUL-containing XNU command lines instead of truncating
+  away trailing arguments. Actions will compile the shim as well as XNU;
+  `tools/pack-lavender-boot.py` assembles its checked bundle locally with the
+  existing device DTB, without compiling or putting the dump in git.
+- **Verification/build/device result:** pending. No device writes performed
+  in this session. The next concrete steps are checks, CI build, staged new
+  boot image, then live root preparation and a photographed hardware boot.
+
 ## Lavender Bring-up (2026-10-24): initial port and boot configuration
 
 - **Target Hardware Architecture (Redmi Note 7, "lavender"):**

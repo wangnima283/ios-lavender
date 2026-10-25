@@ -31,6 +31,9 @@ for t in test_sdhci_mock test_gpt_parser test_log_ring; do
 	esac
 done
 
+echo "== Apple Device Tree and boot-argument regression checks =="
+python3 tests/test_boot_tools.py
+
 echo "== unified diff structure (all xnu/patches) =="
 python3 tools/check_patch.py xnu/patches/*.patch > "$OUT/check_patch.log"
 tail -3 "$OUT/check_patch.log"

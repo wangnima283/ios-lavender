@@ -43,10 +43,11 @@ def d22ap_product(path=D22AP_ADT):
     if not os.path.exists(path):
         print(f'warning: {path} missing, no /product node', file=sys.stderr)
         return None
-    root, _ = adt.parse(open(path, 'rb').read())
+    with open(path, 'rb') as source:
+        root, _ = adt.parse(source.read())
     for c in root.children:
         if dict((k, v) for k, f, v in c.props).get('name') == b'product\0':
-            return [(k, v) for k, v in c.props if not f and k not in ('name', 'AAPL,phandle')]
+            return [(k, v) for k, f, v in c.props if not f and k not in ('name', 'AAPL,phandle')]
     raise SystemExit(f'{path}: no /product node')
 
 u32 = lambda *v: struct.pack('<%dI' % len(v), *v)

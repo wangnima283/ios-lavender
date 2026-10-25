@@ -1,15 +1,17 @@
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
-@@ -7414,6 +7414,17 @@
+@@ -7414,6 +7414,19 @@
  #if defined(ARM64_BOARD_CONFIG_SWEET)
  			/* SWEET runs every iOS binary this way: one short line per exec. */
  			printf("exec %s\n", p->p_name);
 +#if defined(ARM64_BOARD_CONFIG_SANTONI) || defined(ARM64_BOARD_CONFIG_LAVENDER)
-+			if ((strcmp(p->p_name, "mediaserverd") == 0 ||
-+			     strcmp(p->p_name, "UserEventAgent") == 0 ||
++			uint32_t suspend_daemons = 0;
++			(void)PE_parse_boot_argn("lavender_suspend_daemons", &suspend_daemons, sizeof(suspend_daemons));
++			/* UserEventAgent is launchd's event monitor: it must be allowed to run. */
++			if (suspend_daemons && (strcmp(p->p_name, "mediaserverd") == 0 ||
 +			     strcmp(p->p_name, "thermalmonitord") == 0) &&
 +			    !PE_parse_boot_argn("enable_all_daemons", NULL, 0)) {
-+				printf("lavender: %s spawn bypassed (suspended) to prevent crash loop\n", p->p_name);
++				printf("lavender: %s suspended by lavender_suspend_daemons=1\n", p->p_name);
 +				task_suspend_internal(proc_task(p));
 +				error = 0;
 +				goto done;

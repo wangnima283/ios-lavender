@@ -47,7 +47,7 @@ python3 ../tools/mkinit.py out/lavender-init.o out/init.macho
 
 # Ramdisk / Payload packaging
 RAMDISK="out/ramdisk.bin"
-CMDLINE="${CMDLINE:-debug=0x14e serial=3 cs_enforcement_disable=1 amfi_get_out_of_my_way=1 amfi_allow_any_signature=1 disable_kprintf_output=0 -enable_kprintf_spam sweetfb_stayon=1 sweethidtest=5 sweetfb_hz=30 sweetcpufreq=0 sweetbattery=0 rd=emmcroot0 emmcroot=userdata emmcrw=1 rootrw=1 unentitled_ios_sim_launch=1 ignition_level=1 wdt_test=no_user_checkin launchd_unsecure_cache=1 wdt=-1 -v keepsyms=1 sweetscan=backboardd,SpringBoard lavender}"
+CMDLINE="${CMDLINE:-debug=0x14e serial=3 cpus=1 cs_enforcement_disable=1 amfi_get_out_of_my_way=1 amfi_allow_any_signature=1 disable_kprintf_output=0 -enable_kprintf_spam sweetfb_stayon=1 sweetfb_hz=30 sweetcpufreq=0 sweetbattery=0 rd=emmcroot0 emmcroot=userdata emmcrw=1 rootrw=1 unentitled_ios_sim_launch=1 ignition_level=1 wdt_test=no_user_checkin launchd_unsecure_cache=1 wdt=-1 -v keepsyms=1 sweetsample=launchd,usermanagerd,UserEventAgent,backboardd,SpringBoard sweetscan=backboardd,SpringBoard lavender}"
 
 # Ensure a minimal ramdisk.bin is always present
 if command -v cpio >/dev/null 2>&1; then
@@ -74,24 +74,29 @@ if [ -n "$PAYLOAD" ] && [ -f "out/payload.bin" ]; then
 	python3 -c 'import os,struct,sys; f=open(sys.argv[1],"r+b"); f.seek(16); f.write(struct.pack("<Q", os.path.getsize(sys.argv[1])))' out/Image
 fi
 
-# Package as Image.gz-dtb (standard SDM660 kernel format for Qualcomm ABL)
+# CI compiles the shim without shipping a device dump. The compiled bundle
+# can be wrapped locally with tools/pack-lavender-boot.py and the existing DTB.
 gzip -9 -c out/Image > out/Image.gz
-if [ -f ../resources/lavender_dtb.bin ]; then
+if [ "${PACK_BOOTIMG:-1}" != 0 ]; then
+	[ -f ../resources/lavender_dtb.bin ] || {
+		echo "error: resources/lavender_dtb.bin is required to package a Lavender boot image" >&2
+		exit 1
+	}
 	cat ../resources/lavender_dtb.bin >> out/Image.gz
-fi
 
-# Packaging: wrap in boot.img using tools/mkbootimg.py with lavender parameters
-python3 ../tools/mkbootimg.py \
-	--kernel out/Image.gz \
-	--ramdisk "$RAMDISK" \
-	--output out/shim-boot.img \
-	--base 0x00000000 \
-	--kernel_offset 0x00008000 \
-	--ramdisk_offset 0x02000000 \
-	--tags_offset 0x00000100 \
-	--pagesize 4096 \
-	--header_version 0 \
-	--cmdline "$CMDLINE"
+	# Packaging: wrap in boot.img with the verified SDM660 ABL parameters.
+	python3 ../tools/mkbootimg.py \
+		--kernel out/Image.gz \
+		--ramdisk "$RAMDISK" \
+		--output out/shim-boot.img \
+		--base 0x00000000 \
+		--kernel_offset 0x00008000 \
+		--ramdisk_offset 0x02000000 \
+		--tags_offset 0x00000100 \
+		--pagesize 4096 \
+		--header_version 0 \
+		--cmdline "$CMDLINE"
+fi
 
 # Host render of the console layout
 $HOST_CC -O2 -Wall -I. -o out/host_test console.c host_test.c && ./out/host_test
@@ -102,4 +107,7 @@ $HOST_CC -O2 -Wall -I. -o out/loader_test loader_test.c loader.c && ./out/loader
 # Unit tests and patch checks
 HOST_CC="$HOST_CC" OUT_DIR="$PWD/out" bash ../tests/run_tests.sh
 
-ls -l out/Image out/shim-boot.img
+ls -l out/Image out/Image.gz
+if [ "${PACK_BOOTIMG:-1}" != 0 ]; then
+	ls -l out/shim-boot.img
+fi
