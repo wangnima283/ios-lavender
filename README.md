@@ -1,8 +1,8 @@
 # ios-lavender
 
-**Apple's iOS 16 running on a Redmi Note 7.**
+**Experimental iOS 16 bring-up on the Redmi Note 7.**
 
-This is a port of Apple's open-source XNU kernel (xnu-8796) to the Xiaomi **Redmi Note 7** (`lavender`, Qualcomm **SDM660** / Snapdragon 660). On top of it runs the unmodified iOS 16.7.16 (20H392) userland of the iPhone X: launchd, the system daemons, backboardd and SpringBoard.
+This is a port of Apple's open-source XNU kernel (xnu-8796) to the Xiaomi **Redmi Note 7** (`lavender`, Qualcomm **SDM660** / Snapdragon 660), using the iPhone X's iOS 16.7.16 (20H392) userland. Hardware photos verify XNU, launchd and usermanagerd. Reaching backboardd and SpringBoard on Lavender is still bring-up work; see the active handoff in [NOTES.md](NOTES.md).
 
 > Experimental bring-up. It installs into the `userdata` partition and so **erases Android's user data**. Nothing is flashed to the boot partitions; the kernel is started from RAM with `fastboot boot`.
 
@@ -11,12 +11,12 @@ This is a port of Apple's open-source XNU kernel (xnu-8796) to the Xiaomi **Redm
 | Area | State |
 | --- | --- |
 | Boot | Stock Xiaomi ABL → `fastboot boot` of our shim (boot image v0/v1) → XNU. Boot partitions are not touched |
-| CPU | The four Cortex-A73 ("Gold", MPIDR `0x100`–`0x103`) cores, 16K pages, GICv3, timers. The Silver cores are parked |
+| CPU | Single Cortex-A73 Gold boot baseline (`cpus=1`), 16K pages, GICv3 and timers. The ADT describes four Gold cores (`0x100`–`0x103`); SMP needs its own hardware verification |
 | Memory | DRAM physical base `0x80000000`, safe kernel budget `0xa0000000` + 1 GiB |
 | Storage | eMMC 5.1 host controller (Qualcomm SDHC v5 at `0x0c0c4000`, GIC SPI 110) |
 | iOS userland | iPhone X 16.7.16 root filesystem; launchd and system daemons |
-| Display | Kernel IOSurface + IOMobileFramebuffer (`AppleCLCD`); software CoreAnimation into ABL's continuous splash framebuffer at `0x9d400000` (1080×2340 32-bit `a8r8g8b8`) |
-| Device identity | iPhone X (`iPhone10,3` / `D22AP`): no Home button, gesture UI |
+| Display | Verified framebuffer console at `0x9d400000` (1080×2340, 32-bit `a8r8g8b8`); IOSurface/IOMobileFramebuffer drivers are included, GUI presentation is pending |
+| Device identity | ADT advertises iPhone X (`iPhone10,3` / `D22AP`) and copies its real `/product` properties |
 
 ## Hardware architecture & differences
 
@@ -39,22 +39,24 @@ ABL (stock Xiaomi bootloader, unlocked)
         -> shim on Gold: GICv3 setup, timer unmask, locates payload
            -> XNU Mach-O + Apple Device Tree (ADT) + boot-args
               -> XNU -> SDHCI eMMC driver -> HFS+ root in userdata
-                 -> dyld + shared cache -> launchd -> backboardd + SpringBoard
+                  -> dyld + shared cache -> launchd -> usermanagerd (observed)
+                     -> backboardd + SpringBoard (goal)
 ```
 
 There is no serial console. The kernel draws its console into ABL's framebuffer; with `sweetfb_noconsole=1` it stops after the first iOS frame (panics are still drawn). The kernel also keeps sweet's persistent log ring at the end of `userdata` and its user stack sampler (`SMP name tN pc .. bt ..`).
 
 ## How to do it yourself
 
-You need a Redmi Note 12 4G (`topaz`/`tapas`, SM6225) with an **unlocked bootloader**, a Linux PC with `fastboot`, and a GitHub account for the kernel build. **Everything on `userdata` is lost.** Boot, vendor_boot, firmware and other partitions are never written.
+You need a Redmi Note 7 (`lavender`, SDM660) with an **unlocked bootloader**, a host with `fastboot`, and a GitHub account for the build. Creating a new installation erases `userdata`; an existing iOS root should receive its preparation tweaks in place.
 
 ### 1. Build the kernel
 
-The kernel builds on GitHub's macOS runners (macos-14, Xcode 15) with [blacktop/darwin-xnu-build](https://github.com/blacktop/darwin-xnu-build); newer Xcode's `iig` does not match the xnu-8796 IORPC ABI. Fork the repo and run, on the `topaz` branch:
+The kernel builds on GitHub's macOS runners (macos-14, Xcode 15) with [blacktop/darwin-xnu-build](https://github.com/blacktop/darwin-xnu-build); newer Xcode's `iig` does not match the xnu-8796 IORPC ABI. The workflow then compiles the Lavender shim on Ubuntu and fetches only the matching iPhone X device-tree member for `/product`. Fork the repo and run on `lavender`:
 
 ```sh
-gh workflow run xnu.yml -R YOU/ios-topaz --ref topaz
-gh run download RUN_ID -R YOU/ios-topaz -n xnu-kernel -D xnu/out
+gh workflow run xnu.yml -R YOU/ios-lavender --ref lavender -f machine_config=LAVENDER
+gh run download RUN_ID -R YOU/ios-lavender -n lavender-shim -D out/lavender-shim
+gh run download RUN_ID -R YOU/ios-lavender -n xnu-kernel -D out/lavender-kernel
 ```
 
 A build takes about 8 minutes. If the artifact upload times out on GitHub's side, rerun the job. Check that the kernel has no LSE left (`llvm-objdump -d --mattr=+v8.5a ... | grep -P '\t(cas|ldadd|ldset|ldclr|swp|ldapr)'`; the only hit should be the `K256` SHA table).
@@ -72,23 +74,22 @@ sudo umount /mnt/iosroot
 img2simg ios16-root.img ios16-root.simg
 ```
 
-The device tree builder copies `/product` from the real iPhone X device tree. Take `Firmware/all_flash/DeviceTree.d22ap.im4p` from the IPSW, decompress its LZFSE payload (`ipsw img4 im4p extract`) and save it as `research/ipsw-x/d22ap.adt`.
+The device tree builder copies `/product` from the real iPhone X device tree. The Actions shim job downloads and decompresses `Firmware/all_flash/DeviceTree.d22ap.im4p` automatically. For an existing installation, run `sweet-root-tweaks.py` against the live mounted root after backing up the affected files; a previously flashed image is no longer an exact copy after iOS has written session state.
 
 ### 3. Build the boot image
 
-Needs `aarch64-linux-gnu-gcc` and AOSP `mkbootimg.py` (set `MKBOOTIMG` if it is not at the default path in `shim/build.sh`).
+Wrap the checked Actions bundle with the existing Lavender board DTB at `resources/lavender_dtb.bin`. This step uses Python, without local compilation. The output name must be new:
 
 ```sh
-python3 tools/mkadt.py shim/out/topaz.adt --highmem
-python3 tools/mkpayload.py xnu/out/kernel.development.sweet shim/out/topaz.adt shim/out/payload.bin \
-    --cmdline 'debug=0xc serial=3 cpus=4 keepsyms=1 -noprogress rd=ufsroot0 unentitled_ios_sim_launch=1 ignition_level=1 wdt_test=no_user_checkin ufsrw=1 rootrw=1 launchd_unsecure_cache=1 wdt=-1 sweetfb_noconsole=1 sweetfb_hz=30'
-shim/build.sh ../shim/out/payload.bin      # -> shim/out/shim-boot.img
+python3 tools/pack-lavender-boot.py out/lavender-shim resources/lavender_dtb.bin out/shim-boot-lavender.img
 ```
 
 | Boot-arg | Effect |
 | --- | --- |
-| `rd=ufsroot0 ufsrw=1 rootrw=1` | Root on `userdata`, writable |
-| `cpus=4` | All four Gold cores; `cpus=1` is the safe fallback |
+| `rd=emmcroot0 emmcroot=userdata emmcrw=1 rootrw=1` | HFS+ root on `userdata`, writable |
+| `cpus=1` | Current single-Gold-core boot baseline |
+| `sweetsample=launchd,usermanagerd,UserEventAgent,backboardd,SpringBoard` | Sample the early-boot services and GUI processes |
+| `lavender_suspend_daemons=1` | Explicit diagnostic suspension of mediaserverd/thermalmonitord; disabled by default. UserEventAgent is never suspended by this workaround |
 | `sweetfb_noconsole=1` | Stop drawing kernel text over the GUI after the first iOS frame. Leave it out to debug (much slower: every console line is drawn and scrolled by the CPU) |
 | `sweetfb_hz=30` | Panel refresh rate of the CPU frame copy |
 | `sweettouch=0` | Disable the touch driver |
@@ -99,10 +100,10 @@ shim/build.sh ../shim/out/payload.bin      # -> shim/out/shim-boot.img
 
 ```sh
 fastboot -S 512M flash userdata ios16-root.simg   # ~5 minutes; do not unplug
-fastboot boot shim/out/shim-boot.img
+fastboot boot out/shim-boot-lavender.img
 ```
 
-The shim screen (red) shows `MMFR0`, the Gold hand-off and `SPEED silver=… gold=…` for 8 seconds, then XNU starts. The first boot spends a while on the Apple logo (SpringBoard waits for LaunchServices to build its database); the lock screen follows after about 3 minutes. To get back to fastboot, hold Power + Volume down.
+The shim shows its boot logo, performs the Gold hand-off and starts XNU. Keep the text console enabled during bring-up and capture `exec`, `CRASH` and `SMP` lines. A Lavender lock-screen boot has not yet been verified. To get back to fastboot, hold Power + Volume down.
 
 ### Debugging tips
 
@@ -110,6 +111,8 @@ The shim screen (red) shows `MMFR0`, the Gold hand-off and `SPEED silver=… gol
 - `SWEET TOUCH: ...` lines show each touch bring-up step (clocks, SE2 firmware check, chip id `54:52`).
 
 ## Roadmap
+
+The list below is inherited **Topaz reference material**, including its hardware addresses. Current Lavender priorities are prepared-userland boot and hardware verification of the display, SMP, buttons and touch; the Topaz peripheral drivers need board-specific porting.
 
 1. **Touch** (FT5452 at I²C `0x38` on QUP0 SE2 `0x4a88000`, IRQ GPIO80, reset GPIO86, AVDD GPIO36): patch 0083, needs confirmation on the phone.
 2. **Buttons**: power and volume down on the PM6125 PON block, volume up on PM6125 GPIO5.

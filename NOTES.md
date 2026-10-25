@@ -1,6 +1,6 @@
 # iOS 16 on lavender (Redmi Note 7, Qualcomm SDM660) - working notes
 
-## Active handoff (2026-10-25): userland stall, verified baseline and fixes in progress
+## Active handoff (2026-10-25): corrected image ready; live root preparation pending charging
 
 - **Device observation:** `/storage/emulated/0/Pictures/AGC_20261025_215432634.jpg`
   shows launchd, AppleKeyStore/MKB initialization and `exec usermanagerd`.
@@ -11,7 +11,7 @@
   older Sweet bring-up and is not proof of an APFS mounting failure.
 - **User confirmations:** the photo was booted with **`fastboot boot`**, which
   works on this Lavender. No additional root tweaks were applied after
-  flashing. The phone is currently disconnected. The user explicitly approved
+  flashing. The user explicitly approved
   committing/pushing these fixes to `lavender` and building through Actions.
 - **Baseline:** local HEAD `92f8e72`, five shim-only commits ahead of
   `origin/lavender` (`55f097b`). Kernel from successful Actions run
@@ -38,7 +38,7 @@
   `tools/sweet-root-tweaks.py` to the **live mounted root**, retaining backups,
   before claiming the port's userland preparation is complete. Do not flash
   a sparse diff generated from this old image over the changed live volume.
-- **Code changes in progress:** daemon suspension becomes explicit opt-in,
+- **Code changes (`962cbec`):** daemon suspension becomes explicit opt-in,
   UserEventAgent is never suspended by this workaround, and boot sampling
   includes usermanagerd and UserEventAgent. Remove synthetic HID power-key
   presses during startup. Fix the real-D22AP `/product` tuple unpacking bug
@@ -50,16 +50,47 @@
   regression tests, full patch-structure checks, shell syntax and actionlint
   passed. Actions run **40215701323**: XNU and critical patch guard passed;
   Linux shim compilation and real-D22AP identity extraction passed, but
-  `loader_test` segfaulted (exit 139). Its `_end` mock conflicts with GNU's
-  reserved linker symbol; rename that symbol for the host test and rerun CI.
+  `loader_test` segfaulted (exit 139). Commit `7068c8c` renames its `_end`
+  mock for the host compile, avoiding GNU's reserved linker symbol.
+- **Successful build:** Actions run **40216293922** at `7068c8c` passed both
+  jobs: XNU and the Lavender shim, including the host loader test, storage/GPT/
+  log tests, patch structure/critical-patch guard and Python boot-tool tests.
+  Downloaded artifacts are `out/ci-40216293922-shim/` and
+  `out/ci-40216293922-kernel/`. Kernel SHA256:
+  `cd93bf87d7f50e182db5a283f7aa3804002e955014fd0f17ff42069061b7143a`.
+- **Ready boot image:** `out/shim-boot-lavender-userland-40216293922.img`, also
+  staged to `/storage/emulated/0/shim-boot-lavender-userland-40216293922.img`,
+  **6,705,152 bytes**, SHA256
+  `487ff7c6a57d25ed906616fe98a8c9c3fed5064dee7f47037f7450e09f271c4f`.
+  `.json` and `.sha256` sidecars record provenance. Local assembly used only
+  Python and the existing DTB; all compilation was in Actions. Round-trip
+  checks confirm the gzip/DTB boundary, embedded payload, matching Android/
+  XNU command lines (489/607 bytes), memory layout, kernel checksum and a
+  real iPhone X `/product` node (63 properties). This new image has **not yet
+  been booted on the phone**.
 - **Device access:** user connected the phone in fastboot; product verified
   as Lavender. Temporary boot of `~/twrp.img` was accepted but returned to
   fastboot (user observation). The file matches TeamWin's official 3.7.0_9-0
   SHA256 `77a3b799e9b6748bdbb8352431166a834a547db95884885f1026dfe9167a93fe`.
   Its ramdisk address is `0x01000000`, while the decompressed kernel header
   declares image_size `0x03014000`; test a temporary copy with ramdisk at
-  `0x04000000`. This overlap is a hypothesis until the boot test. No device
-  partitions or root files have been written in this session.
+  `0x04000000`. That trial did not establish recovery/adb access; the overlap
+  hypothesis has not been proven as the cause. The user then flashed the
+  extracted recovery.img from
+  `OrangeFox-R12.0_kernel_419-UNOFFICIAL-lavender.zip` to `recovery` and later
+  confirmed **OrangeFox successfully booted**. The latest reported battery
+  level was **2%**; charging takes priority before filesystem writes.
+  Agent-issued commands have only used temporary boots and reboot requests;
+  no partition flashes or root-file changes have been performed by this agent.
+- **Next concrete action:** reconnect the charged phone in OrangeFox and
+  establish adb access (root adb server was started at port 5038). Inspect
+  the live HFS+ root and recovery kernel's filesystem support, back up the
+  files to be changed, apply the existing root tweaks, and verify owners and
+  preferences. Then boot the staged image with `fastboot boot` and photograph
+  exec/CRASH/SMP lines for usermanagerd, UserEventAgent, backboardd and
+  SpringBoard. Root preparation and the new hardware boot are still pending.
+- **Backup fact:** `~/stock_boot.img` was found to be zero bytes during header
+  inspection. It is not a usable stock-boot backup.
 
 ## Lavender Bring-up (2026-10-24): initial port and boot configuration
 
