@@ -1,0 +1,86 @@
+diff --git a/bsd/kern/kern_cs.c b/bsd/kern/kern_cs.c
+index 52fdc5d..e248e43 100644
+--- a/bsd/kern/kern_cs.c
++++ b/bsd/kern/kern_cs.c
+@@ -863,6 +863,9 @@ csvnode_get_teamid(struct vnode *vp, off_t offset)
+ int
+ csproc_get_platform_binary(struct proc *p)
+ {
++#if defined(ARM64_BOARD_CONFIG_SANTONI) || defined(ARM64_BOARD_CONFIG_LAVENDER)
++	return 1;
++#else
+ 	struct cs_blob *csblob;
+ 
+ 	csblob = csproc_get_blob(p);
+@@ -870,6 +873,7 @@ csproc_get_platform_binary(struct proc *p)
+ 	/* If there is no csblob this returns 0 because
+ 	 *  it is true that it is not a platform binary */
+ 	return (csblob == NULL) ? 0 : csblob->csb_platform_binary;
++#endif
+ }
+ 
+ int
+diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
+index 13729c0..62bf2ad 100644
+--- a/bsd/kern/kern_exec.c
++++ b/bsd/kern/kern_exec.c
+@@ -1659,6 +1659,9 @@ grade:
+ 	 * that doesn't go through the upcall path as a platform binary if its
+ 	 * enforcement is disabled).
+ 	 */
++#if defined(ARM64_BOARD_CONFIG_SANTONI) || defined(ARM64_BOARD_CONFIG_LAVENDER)
++	load_result.platform_binary = 1;
++#endif
+ 	if (load_result.platform_binary) {
+ 		if (cs_debug) {
+ 			printf("setting platform binary on task: pid = %d\n", proc_getpid(p));
+@@ -5739,6 +5742,23 @@ exec_extract_strings(struct image_params *imgp)
+ 		imgp->ip_envc++;
+ 	}
+ 
++#if defined(ARM64_BOARD_CONFIG_SANTONI) || defined(ARM64_BOARD_CONFIG_LAVENDER)
++	{
++		static const char *inject_envs[] = {
++			"OBJC_DISABLE_PREOPTIMIZED_CACHES=YES",
++			"OBJC_DISABLE_PREOPTIMIZATION=YES",
++		};
++		for (unsigned int ei = 0; ei < sizeof(inject_envs) / sizeof(inject_envs[0]); ei++) {
++			if (imgp->ip_argspace >= (int)(new_ptr_size + strlen(inject_envs[ei]) + 1)) {
++				if (exec_add_user_string(imgp, CAST_USER_ADDR_T(inject_envs[ei]), UIO_SYSSPACE, TRUE) == 0) {
++					imgp->ip_argspace -= new_ptr_size;
++					imgp->ip_envc++;
++				}
++			}
++		}
++	}
++#endif
++
+ 	/* Save space for envv[] NULL terminator */
+ 	if (imgp->ip_argspace < new_ptr_size) {
+ 		error = E2BIG;
+@@ -7342,6 +7362,9 @@ process_signature(proc_t p, struct image_params *imgp)
+ 	 * loaded
+ 	 */
+ 	proc_lock(p);
++#if defined(ARM64_BOARD_CONFIG_SANTONI) || defined(ARM64_BOARD_CONFIG_LAVENDER)
++	imgp->ip_csflags |= CS_PLATFORM_BINARY;
++#endif
+ 	proc_csflags_update(p, imgp->ip_csflags);
+ 	proc_unlock(p);
+ 
+diff --git a/bsd/kern/kern_prot.c b/bsd/kern/kern_prot.c
+index a285876..528acff 100644
+--- a/bsd/kern/kern_prot.c
++++ b/bsd/kern/kern_prot.c
+@@ -657,7 +657,11 @@ out:
+ int
+ proc_issetugid(proc_t p)
+ {
++#if defined(ARM64_BOARD_CONFIG_SANTONI) || defined(ARM64_BOARD_CONFIG_LAVENDER)
++	return 0;
++#else
+ 	return (p->p_flag & P_SUGID) ? 1 : 0;
++#endif
+ }
+ 
+ int
