@@ -102,7 +102,9 @@ fi
 $HOST_CC -O2 -Wall -I. -o out/host_test console.c host_test.c && ./out/host_test
 
 # Host unit test for Mach-O segment unroller and boot_args
-$HOST_CC -O2 -Wall -I. -o out/loader_test loader_test.c loader.c && ./out/loader_test
+# GNU's host linker reserves _end for the end of BSS. Give the test's mock
+# image boundary its own name so loader_boot does not read beyond that BSS.
+$HOST_CC -O2 -Wall -I. -D_end=loader_test_image_end -o out/loader_test loader_test.c loader.c && ./out/loader_test
 
 # Unit tests and patch checks
 HOST_CC="$HOST_CC" OUT_DIR="$PWD/out" bash ../tests/run_tests.sh

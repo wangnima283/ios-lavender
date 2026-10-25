@@ -46,9 +46,20 @@
   away trailing arguments. Actions will compile the shim as well as XNU;
   `tools/pack-lavender-boot.py` assembles its checked bundle locally with the
   existing device DTB, without compiling or putting the dump in git.
-- **Verification/build/device result:** pending. No device writes performed
-  in this session. The next concrete steps are checks, CI build, staged new
-  boot image, then live root preparation and a photographed hardware boot.
+- **Milestone:** code committed/pushed as `962cbec`. Four Python boot-tool
+  regression tests, full patch-structure checks, shell syntax and actionlint
+  passed. Actions run **40215701323**: XNU and critical patch guard passed;
+  Linux shim compilation and real-D22AP identity extraction passed, but
+  `loader_test` segfaulted (exit 139). Its `_end` mock conflicts with GNU's
+  reserved linker symbol; rename that symbol for the host test and rerun CI.
+- **Device access:** user connected the phone in fastboot; product verified
+  as Lavender. Temporary boot of `~/twrp.img` was accepted but returned to
+  fastboot (user observation). The file matches TeamWin's official 3.7.0_9-0
+  SHA256 `77a3b799e9b6748bdbb8352431166a834a547db95884885f1026dfe9167a93fe`.
+  Its ramdisk address is `0x01000000`, while the decompressed kernel header
+  declares image_size `0x03014000`; test a temporary copy with ramdisk at
+  `0x04000000`. This overlap is a hypothesis until the boot test. No device
+  partitions or root files have been written in this session.
 
 ## Lavender Bring-up (2026-10-24): initial port and boot configuration
 
