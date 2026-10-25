@@ -1,6 +1,6 @@
 --- a/osfmk/kern/exception.c
 +++ b/osfmk/kern/exception.c
-@@ -820,6 +820,60 @@
+@@ -820,6 +820,78 @@
  	return exception_triage_thread(exception, code, codeCnt, thread);
  }
  
@@ -40,6 +40,24 @@
 +	printf("CRASH %s pc 0x%llx lr 0x%llx sp 0x%llx fp 0x%llx far 0x%llx\n", name,
 +	    get_saved_state_pc(ss), get_saved_state_lr(ss), get_saved_state_sp(ss), fp,
 +	    (uint64_t)saved_state64(ss)->far);
++	printf("CRASH %s x0 0x%llx x1 0x%llx x2 0x%llx x3 0x%llx\n", name,
++	    (uint64_t)saved_state64(ss)->x[0], (uint64_t)saved_state64(ss)->x[1],
++	    (uint64_t)saved_state64(ss)->x[2], (uint64_t)saved_state64(ss)->x[3]);
++	char x0_str[64];
++	if (saved_state64(ss)->x[0] != 0 &&
++	    copyin((user_addr_t)saved_state64(ss)->x[0], x0_str, sizeof(x0_str) - 1) == 0) {
++		x0_str[sizeof(x0_str) - 1] = '\0';
++		bool printable = (x0_str[0] != '\0');
++		for (int si = 0; x0_str[si] != '\0'; si++) {
++			if (x0_str[si] < 32 || x0_str[si] > 126) {
++				printable = false;
++				break;
++			}
++		}
++		if (printable) {
++			printf("CRASH %s str: \"%s\"\n", name, x0_str);
++		}
++	}
 +
 +	char line[200];
 +	int n = snprintf(line, sizeof(line), "CRASH %s bt", name);

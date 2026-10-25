@@ -2,7 +2,20 @@ diff --git a/bsd/kern/kern_cs.c b/bsd/kern/kern_cs.c
 index 52fdc5d..e248e43 100644
 --- a/bsd/kern/kern_cs.c
 +++ b/bsd/kern/kern_cs.c
-@@ -863,6 +863,9 @@ csvnode_get_teamid(struct vnode *vp, off_t offset)
+@@ -248,6 +248,12 @@
+ int
+ cs_invalid_page(addr64_t vaddr, boolean_t *cs_killed)
+ {
++#if defined(ARM64_BOARD_CONFIG_SANTONI) || defined(ARM64_BOARD_CONFIG_LAVENDER)
++	if (cs_killed) {
++		*cs_killed = FALSE;
++	}
++	return 0;
++#endif
+ 	struct proc     *p;
+ 	int             send_kill = 0, retval = 0, verbose = cs_debug;
+ 	uint64_t flags;
+@@ -863,6 +869,9 @@ csvnode_get_teamid(struct vnode *vp, off_t offset)
  int
  csproc_get_platform_binary(struct proc *p)
  {
@@ -12,7 +25,7 @@ index 52fdc5d..e248e43 100644
  	struct cs_blob *csblob;
  
  	csblob = csproc_get_blob(p);
-@@ -870,6 +873,7 @@ csproc_get_platform_binary(struct proc *p)
+@@ -870,6 +879,7 @@ csproc_get_platform_binary(struct proc *p)
  	/* If there is no csblob this returns 0 because
  	 *  it is true that it is not a platform binary */
  	return (csblob == NULL) ? 0 : csblob->csb_platform_binary;
@@ -57,16 +70,34 @@ index 13729c0..464ef0a 100644
  	/* Save space for envv[] NULL terminator */
  	if (imgp->ip_argspace < new_ptr_size) {
  		error = E2BIG;
-@@ -7342,6 +7361,9 @@ process_signature(proc_t p, struct image_params *imgp)
+@@ -7342,18 +7361,26 @@ process_signature(proc_t p, struct image_params *imgp)
  	 * loaded
  	 */
  	proc_lock(p);
 +#if defined(ARM64_BOARD_CONFIG_SANTONI) || defined(ARM64_BOARD_CONFIG_LAVENDER)
-+	imgp->ip_csflags |= CS_PLATFORM_BINARY;
++	imgp->ip_csflags |= (CS_PLATFORM_BINARY | CS_SIGNED | CS_VALID);
++	imgp->ip_csflags &= ~(CS_HARD | CS_KILL | CS_ENFORCEMENT);
 +#endif
  	proc_csflags_update(p, imgp->ip_csflags);
  	proc_unlock(p);
  
+ 	/* Set the switch_protect flag on the map */
+ 	if (proc_getcsflags(p) & (CS_HARD | CS_KILL)) {
+ 		vm_map_switch_protect(get_task_map(proc_task(p)), TRUE);
+ 	}
+ 	/* set the cs_enforced flags in the map */
++#if defined(ARM64_BOARD_CONFIG_SANTONI) || defined(ARM64_BOARD_CONFIG_LAVENDER)
++	vm_map_cs_enforcement_set(get_task_map(proc_task(p)), FALSE);
++#else
+ 	if (proc_getcsflags(p) & CS_ENFORCEMENT) {
+ 		vm_map_cs_enforcement_set(get_task_map(proc_task(p)), TRUE);
+ 	} else {
+ 		vm_map_cs_enforcement_set(get_task_map(proc_task(p)), FALSE);
+ 	}
++#endif
+ 
+ 	/*
+ 	 * image activation may be failed due to policy
 diff --git a/bsd/kern/kern_prot.c b/bsd/kern/kern_prot.c
 index a285876..528acff 100644
 --- a/bsd/kern/kern_prot.c
