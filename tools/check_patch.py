@@ -138,6 +138,9 @@ def parse(path):
                     truncated = "end of file"
                     break
                 body = lines[i]
+                if body.startswith("@@ ") or body.startswith("diff --git "):
+                    truncated = "unexpected header inside hunk"
+                    break
                 if body.startswith("\\"):
                     # "\ No newline at end of file"
                     i += 1
