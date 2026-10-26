@@ -282,7 +282,7 @@ void secondary_main(uint64_t idx)
 void shim_main(uint64_t dtb)
 {
 	stage = "loader";
-	con_draw_apple_logo();
+	con_clear(RED);
 	con_str("SHIM", "lavender bare-metal shim (SDM660)");
 
 	uint64_t mmfr0 = rsr("id_aa64mmfr0_el1");

@@ -15,7 +15,6 @@
 extern volatile uint32_t *con_fb;
 
 void con_clear(uint32_t bg);
-void con_draw_apple_logo(void);
 void con_skip(void);
 void con_rewind(int n);
 void con_str(const char *label, const char *s);

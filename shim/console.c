@@ -5,7 +5,6 @@
  */
 #include "console.h"
 #include "font.h"
-#include "apple_logo.h"
 
 #define SCALE		3
 #define CH_W		(8 * SCALE)
@@ -104,21 +103,4 @@ void con_hex2(const char *label, const char *a, uint32_t va, const char *b, uint
 		put_str(col, buf, WHITE);
 	}
 	row++;
-}
-
-void con_draw_apple_logo(void)
-{
-	con_clear(0x00000000); /* OLED pure black */
-	int start_x = (FB_W - APPLE_LOGO_W) / 2;
-	int start_y = 800; /* Apple boot logo center on 2340p display */
-
-	for (int y = 0; y < APPLE_LOGO_H; y++) {
-		volatile uint32_t *line = con_fb + (start_y + y) * (FB_STRIDE / 4) + start_x;
-		const uint8_t *row_bytes = &apple_logo_bitmap[y * (APPLE_LOGO_W / 8)];
-		for (int x = 0; x < APPLE_LOGO_W; x++) {
-			if (row_bytes[x / 8] & (0x80 >> (x % 8))) {
-				line[x] = 0xffffffff; /* Solid Apple White */
-			}
-		}
-	}
 }
