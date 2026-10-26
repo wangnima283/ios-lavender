@@ -23,6 +23,8 @@ on:
     paths:
       - "xnu/patches/**"
       - ".github/workflows/xnu.yml"
+      - "shim/**"
+      - "tools/**"
 
 
 concurrency:
