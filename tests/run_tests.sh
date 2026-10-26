@@ -21,6 +21,7 @@ mkdir -p "$OUT"
 P142="xnu/patches/0142-santoni-sdhci-emmc-driver.patch"
 P143="xnu/patches/0143-santoni-persistent-console-log.patch"
 P144="xnu/patches/0144-santoni-4k-unsigned-dyld-cache.patch"
+P152="xnu/patches/0152-lavender-unprotected-dprotected-open.patch"
 
 echo "== host unit tests (-Wall -Wextra) =="
 for t in test_sdhci_mock test_gpt_parser test_log_ring; do
@@ -232,6 +233,14 @@ python3 tools/check_patch.py "$P142" -q \
 	--added-contains 'bsd/dev/santoni_sdhci.c:error = copyin((user_addr_t)(vaddr + done),' \
 	--added-lacks 'bsd/dev/santoni_sdhci.c:return physio('
 echo "ok   0142 never hands a user VA to memcpy and keeps the cdev lock off uiomove"
+
+echo "== BOOT-01: Lavender protected creates use unprotected HFS semantics =="
+python3 tools/check_patch.py "$P152" -q \
+	--added-contains 'bsd/vfs/vfs_syscalls.c:class = PROTECTION_CLASS_DEFAULT;' \
+	--added-contains 'bsd/vfs/vfs_syscalls.c:LAVENDER CP: class %d protected create -> normal open' \
+	--added-contains 'bsd/kern/kern_guarded.c:The Lavender HFS root is unprotected; use normal create semantics.' \
+	--added-lacks 'bsd/vfs/vfs_syscalls.c:uap->class = PROTECTION_CLASS_DEFAULT'
+echo "ok   0152 leaves raw flags intact and drops only unsupported create classes"
 
 # Optional deep check: if a patched XNU source tree is provided, the three
 # patches must also apply to it as-is (git apply --check).

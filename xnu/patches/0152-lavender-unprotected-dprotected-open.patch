@@ -1,0 +1,43 @@
+diff --git a/bsd/vfs/vfs_syscalls.c b/bsd/vfs/vfs_syscalls.c
+--- a/bsd/vfs/vfs_syscalls.c
++++ b/bsd/vfs/vfs_syscalls.c
+@@ -4967,6 +4967,22 @@ openat_dprotected_internal(vfs_context_t ctx, user_addr_t path, int flags, int m
+ 	NDINIT(&nd, LOOKUP, OP_OPEN, FOLLOW | AUDITVNPATH1, segflg,
+ 	    path, ctx);
+ 
++#if defined(ARM64_BOARD_CONFIG_LAVENDER)
++	/*
++	 * Lavender uses one unencrypted HFS root and MKB confirms that its mount
++	 * has no content-protection support.  Leaving va_dataprotect_class active
++	 * makes Foundation's atomic writer retry open_dprotected_np forever while
++	 * usermanagerd saves its session table.  PROTECTION_CLASS_DEFAULT is the
++	 * documented request for ordinary open(2) semantics.
++	 */
++	if ((flags & O_CREAT) && class != PROTECTION_CLASS_DEFAULT) {
++		static int lavender_dprotected_logged;
++		if (!lavender_dprotected_logged++) {
++			printf("LAVENDER CP: class %d protected create -> normal open\n", class);
++		}
++		class = PROTECTION_CLASS_DEFAULT;
++	}
++#endif
+ 	/*
+ 	 * Initialize the extra fields in vnode_attr to pass down our
+ 	 * extra fields.
+diff --git a/bsd/kern/kern_guarded.c b/bsd/kern/kern_guarded.c
+--- a/bsd/kern/kern_guarded.c
++++ b/bsd/kern/kern_guarded.c
+@@ -364,9 +364,13 @@ guarded_open_dprotected_np(proc_t p, struct guarded_open_dprotected_np_args *uap
+ 	 * 1. target cprotect class.
+ 	 * 2. set a flag to mark it as requiring open-raw-encrypted semantics.
+ 	 */
++#if defined(ARM64_BOARD_CONFIG_LAVENDER)
++	/* The Lavender HFS root is unprotected; use normal create semantics. */
++#else
+ 	if (uap->flags & O_CREAT) {
+ 		VATTR_SET(&va, va_dataprotect_class, uap->dpclass);
+ 	}
++#endif
+ 
+ 	if (uap->dpflags & (O_DP_GETRAWENCRYPTED | O_DP_GETRAWUNENCRYPTED)) {
+ 		if (uap->flags & (O_RDWR | O_WRONLY)) {

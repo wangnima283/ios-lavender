@@ -1,6 +1,24 @@
 # iOS 16 on lavender (Redmi Note 7, Qualcomm SDM660) - working notes
 
-## Active handoff (2026-10-25): corrected image ready; live root preparation pending charging
+## Active handoff (2026-10-26): usermanagerd protected-open fix ready to build
+
+- **Hardware result, run 40216293922 image (2026-10-26):** verified image
+  `487ff7c6...` was accepted by `fastboot boot`. It did not panic or return to
+  fastboot. At 20-second samples 17-19, only launchd and usermanagerd existed;
+  UserEventAgent, backboardd and SpringBoard had not spawned. usermanagerd's
+  two stacks were unchanged across samples.
+- **Exact usermanagerd blocker:** all retained photos in
+  `/storage/emulated/0/ios-logs/` stop after `NOTHING TO SAVE IN LRU UID LIST`,
+  before the normal `diskSaveUserSessions Success`. The sampled main-binary
+  chain resolves to `0x1000636a0`, immediately after usermanagerd's
+  `open_dprotected_np` call in its atomic-file writer, called from
+  `SaveAllUserSessions` (`0x100016710`). It is repeatedly retrying a class-4
+  protected create on a mount that MKB already reports as `NO CPROTECT`.
+  Public successful HelioDarwin logs continue through `diskSaveUserSessions
+  Success` and carry equivalent no-cprotect bypasses. Patch 0152 makes only
+  Lavender protected creates request documented normal-open semantics; raw
+  encrypted/authenticated flags are unchanged. Build and hardware result are
+  pending.
 
 - **Device observation:** `/storage/emulated/0/Pictures/AGC_20261025_215432634.jpg`
   shows launchd, AppleKeyStore/MKB initialization and `exec usermanagerd`.
