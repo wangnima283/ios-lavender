@@ -4076,3 +4076,20 @@ What it took today (in order): 0058 HID services (Apple IOHIDFamily-1915 user cl
   encoding (opcodes 0x81..0x87, raw TX bytes, RX tags skipped), not the touch protocol.
 - Next: boot the -log image, pull the SYSTEM ring with tools/sweet-log-pull.sh, and
   read the LAVENDER TOUCH lines (clocks, gpio cfg, QUP hw, NVT boot/state/fw, bus/qerr).
+
+## Status 2026-10-27 late: 0179 lavender kernel built; log + normal images packaged
+- CI: dispatched LAVENDER run 40478830196 (commit f614b67); the build job succeeded and
+  produced kernel.development.lavender (17836256 bytes, SHA256SUMS OK, 0179 applied and
+  its strings present). The package job is still whyred-hardcoded, so lavender images
+  were packaged on the phone with shim/build.sh.
+- resources/lavender_dtb.bin added: pruned from the last booting image (612947 -> 7256
+  bytes); check_payload ok (msm-id 0x13d, board-id 0x20008, SDM 660 MTP F7A).
+- shim/build.sh: the 6 MiB cap is now board-aware (lavender 7340032). With the pruned
+  DTB both images are 6094848 bytes, under even whyred's cap.
+- Images on shared storage: shim-boot-touch-log.img (boot this; sweetlog=1 only) and
+  shim-boot-touch-normal.img. The log image deliberately omits -enable_kprintf_spam and
+  cs_debug=2: the SYSTEM ring keeps only the last 4 MiB, and that much console spam
+  would evict the early LAVENDER TOUCH lines (touch init runs ~3 s after SDHCI probe).
+- Next: fastboot boot the log image, wait for boot, then pull the ring from recovery
+  with tools/sweet-log-pull.sh and read the LAVENDER TOUCH lines (clocks, gpio cfg,
+  QUP hw/gen, NVT boot/state/fw, bus/qerr or TCM header).

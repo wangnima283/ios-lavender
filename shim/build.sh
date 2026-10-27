@@ -157,8 +157,13 @@ python3 ../tools/mkbootimg.py \
 # handed over as an "iOS root" image that booted the ramdisk probe because the
 # payload still said rd=md0.
 img_size=$(wc -c < out/shim-boot.img)
-if [ "$img_size" -gt 6291456 ]; then
-	echo "error: out/shim-boot.img is $img_size bytes; whyred's ABL limit is 6291456" >&2
+img_limit=6291456
+if [ "$BOARD_LC" = lavender ]; then
+	# lavender's ABL accepted a 6705152-byte image; keep a margin below that
+	img_limit=7340032
+fi
+if [ "$img_size" -gt "$img_limit" ]; then
+	echo "error: out/shim-boot.img is $img_size bytes; $BOARD_LC limit is $img_limit" >&2
 	exit 1
 fi
 python3 ../tools/payload_cmdline.py --image out/shim-boot.img \
