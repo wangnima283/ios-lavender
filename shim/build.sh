@@ -86,7 +86,15 @@ EXTRA_CMDLINE="${EXTRA_CMDLINE:-}"
 # Unset means "spam", so a hand build keeps the old command line.
 KPRINTF_SPAM="${KPRINTF_SPAM--enable_kprintf_spam}"
 [ -n "$KPRINTF_SPAM" ] && KPRINTF_SPAM="$KPRINTF_SPAM "
-CMDLINE="debug=0x14e serial=3 disable_kprintf_output=0 ${KPRINTF_SPAM}sweetfb_native=1 sweetcpufreq=0 sweetbattery=0 rd=$ROOTDEV -v keepsyms=1 $BOARD_LC $EXTRA_CMDLINE"
+# lavender: match the command line of the image that last booted to the
+# lockscreen. disable_kprintf_output=1 keeps the boot log off the panel
+# (the SYSTEM ring still captures it: 0143 appends before the mute check),
+# and sweetfb_stayon=1 keeps the display from blanking mid-boot.
+if [ "$BOARD_LC" = lavender ]; then
+	CMDLINE="debug=0x14e serial=1 disable_kprintf_output=1 cpus=4 sweetfb_native=1 sweetfb_stayon=1 sweetfb_hz=60 sweetsample=- sweetcpufreq=0 sweetbattery=0 rd=$ROOTDEV emmcroot=userdata rootrw=1 amfi_get_out_of_my_way=1 amfi_allow_any_signature=1 ignition_level=1 wdt_test=no_user_checkin wdt=-1 -v keepsyms=1 $BOARD_LC $EXTRA_CMDLINE"
+else
+	CMDLINE="debug=0x14e serial=3 disable_kprintf_output=0 ${KPRINTF_SPAM}sweetfb_native=1 sweetcpufreq=0 sweetbattery=0 rd=$ROOTDEV -v keepsyms=1 $BOARD_LC $EXTRA_CMDLINE"
+fi
 
 # Ensure a minimal ramdisk.bin is always present
 if command -v cpio >/dev/null 2>&1; then

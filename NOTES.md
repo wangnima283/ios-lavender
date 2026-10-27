@@ -4096,3 +4096,16 @@ What it took today (in order): 0058 HID services (Apple IOHIDFamily-1915 user cl
 - Next: fastboot boot the log image, wait for boot, then pull the ring from recovery
   with tools/sweet-log-pull.sh and read the LAVENDER TOUCH lines (clocks, gpio cfg,
   QUP hw/gen, NVT boot/state/fw, bus/qerr or TCM header).
+
+## Status 2026-10-27 later: touch confirmed working; framebuffer console was the black screen
+- The normal image (0179 with the Novatek fix) initialized the touch controller and touch
+  registers; the panel stayed black with the boot log repeating because the shim cmdline
+  used disable_kprintf_output=0: kprintf was being painted by the framebuffer console over
+  the graphical boot. The previously booting image used disable_kprintf_output=1,
+  sweetfb_stayon=1, sweetfb_hz=60, cpus=4, emmcroot=userdata and rootrw=1.
+- shim/build.sh now builds that exact lavender cmdline (plus the usual emmcrw/
+  cs_enforcement_disable/unentitled_ios_sim_launch/launchd_unsecure_cache extras). The
+  SYSTEM ring still records when console output is muted: 0143 appends in _cnputs before
+  the disable/sweet_console_muted checks. whyred keeps its previous cmdline.
+- Rebuilt both images (6701056 bytes) with the known-good command line; only the cmdline
+  changed, the kernel is the CI lavender build with 0179.
