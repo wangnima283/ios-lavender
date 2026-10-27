@@ -62,6 +62,7 @@
 
 static void santoni_log_start(void);
 static void santoni_fb_test(void);
+extern void sweet_touch_init(void);
 
 extern ppnum_t pmap_find_phys(pmap_t pmap, addr64_t va);
 /* osfmk/arm/machine_routines.h, not exported to the BSD layer */
@@ -2118,7 +2119,7 @@ sdhci_take_over(void)
 	 * Name the build in the log. Matching a boot log to a patch by
 	 * guessing from its messages has already cost flash cycles.
 	 */
-	printf("WHYRED SDHCI: driver 0178 (root \"%s\", writes %s; boot "
+	printf("WHYRED SDHCI: driver 0179 (root \"%s\", writes %s; boot "
 	    "args decide whether the HFS+ root comes from eMMC)\n",
 	    se.part, se.writable ? "enabled" : "read-only");
 
@@ -4252,6 +4253,8 @@ santoni_sdhci_init(void)
 	santoni_log_start();
 	/* After the log: the WHYRED FB lines belong in the SYSTEM ring. */
 	santoni_fb_test();
+	/* Input: touchscreen driver for SDM660 (lavender) / SDM636 (whyred) */
+	sweet_touch_init();
 	return 0;
 }
 
