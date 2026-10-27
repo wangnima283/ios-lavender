@@ -4082,10 +4082,13 @@ What it took today (in order): 0058 HID services (Apple IOHIDFamily-1915 user cl
   produced kernel.development.lavender (17836256 bytes, SHA256SUMS OK, 0179 applied and
   its strings present). The package job is still whyred-hardcoded, so lavender images
   were packaged on the phone with shim/build.sh.
-- resources/lavender_dtb.bin added: pruned from the last booting image (612947 -> 7256
-  bytes); check_payload ok (msm-id 0x13d, board-id 0x20008, SDM 660 MTP F7A).
-- shim/build.sh: the 6 MiB cap is now board-aware (lavender 7340032). With the pruned
-  DTB both images are 6094848 bytes, under even whyred's cap.
+- resources/lavender_dtb.bin: the full vendor DTB (612947 bytes) from the last booting
+  image is required. A pruned 7256-byte DTB (msm-id/board-id still present) made
+  lavender's ABL reject the image with "Failed to load/authenticate boot image: Load
+  Error"; whyred accepts its pruned DTB, lavender does not.
+- shim/build.sh: the 6 MiB cap is now board-aware (lavender 7340032). Both images are
+  6701056 bytes (the last known-booting image was 6705152), so whyred's cap would not
+  have fit them anyway.
 - Images on shared storage: shim-boot-touch-log.img (boot this; sweetlog=1 only) and
   shim-boot-touch-normal.img. The log image deliberately omits -enable_kprintf_spam and
   cs_debug=2: the SYSTEM ring keeps only the last 4 MiB, and that much console spam
