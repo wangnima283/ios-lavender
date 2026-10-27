@@ -4055,3 +4055,24 @@ What it took today (in order): 0058 HID services (Apple IOHIDFamily-1915 user cl
      cpu_init, before arm_vm_init.
   5. panic hook at top of panic_trap_to_debugger: va_copy + _doprnt(fmt, &copy, sweet_early_putc, 16).
   Verify with tools/xnu-cc.py (compile+symbols) and patch-order simulation before the single CI run.
+
+## Status 2026-10-27: 0179 lavender touch protocol fixed (Novatek 0x01, TCM detect)
+- Root cause from the vendor NT36xxx driver: the F7A Novatek does not serve reports at
+  0x62. 0x62 is the hardware command port; the MCU is booted with {0x00,0x69} there,
+  then firmware answers at 7-bit 0x01. Reports are 65 bytes from register 0x00 with
+  records at 0+6*n (the vendor indexes 1+6*n only because its buffer byte 0 holds the
+  pointer). Reset-complete is register 0x60 (values 0xa0..0xaf); FW info is register
+  0x78 after a page select {0xff,0x02,0x1c} (EVENT_BUF_ADDR 0x21c00).
+- 0179 now boots the MCU, polls 0x60, reads FW info (x/y max), and polls the report at
+  0x01 every 8 ms (still without IRQ gating). It logs clocks, GPIO config, QUP hw/state,
+  the first three raw reports, and bus/qerr on failures. Synaptics TCM is detected with
+  a plain 4-byte read at 0x20 (header 0xa5, code, len) and its message headers are
+  logged; TCM report parsing needs the config descriptor and is not implemented.
+- Verified against the vendor: GCC vote 0x52004 bit 17, QUP CBCR 0x19008 bit 0, RCG
+  0x19020 (CFG 0 = XO/1, CMD 1 = update), TLMM bits (mux 2, pull 0, drive 6, OE 9),
+  GPIO2/3 mux 3 (blsp_i2c1), GPIO66 output high, GPIO67 input pull-up.
+- QUP still uses version-1 tags (proven on sailfish); SDM660 Android uses version-2
+  tags. If the log shows NACKs with a valid bus phase, the next step is the v2-tag
+  encoding (opcodes 0x81..0x87, raw TX bytes, RX tags skipped), not the touch protocol.
+- Next: boot the -log image, pull the SYSTEM ring with tools/sweet-log-pull.sh, and
+  read the LAVENDER TOUCH lines (clocks, gpio cfg, QUP hw, NVT boot/state/fw, bus/qerr).
