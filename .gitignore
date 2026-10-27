@@ -21,3 +21,4 @@ __pycache__/
 --dump
 video_frames/
 video_frames_2/
+!resources/lavender_dtb.bin
