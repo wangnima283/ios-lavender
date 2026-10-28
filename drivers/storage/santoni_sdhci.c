@@ -3502,9 +3502,31 @@ sdhci_verify_highspeed_bus(uint32_t expected_sec_count)
 	return EIO;
 }
 
+/*
+ * 0179: sdhci_read_pio()/sdhci_write_pio() already leave the controller
+ * recovered before they return an error - sdhci_recover() resets the
+ * command/data paths and, if an inhibit bit is still stuck, cycles the card
+ * clock to resample the lines (sdhci_reset_paths()). Nothing ever asked the
+ * controller to try the same blocks again afterwards, so one transient
+ * command or data-phase timeout under sustained I/O turned into a permanent
+ * failure for whoever called santoni_sdhci_read_blocks()/write_blocks().
+ * On the root device that is dyld mapping the shared cache: a 0178 boot hit
+ * "command 18 failed ... cmd-timeout" while the console log flusher's CMD24
+ * writes were interleaved on the same controller, the SDMA fallback also
+ * failed with an ADMA error, the read of one dyld_shared_cache_arm64.NN
+ * segment came back EIO, and launchd lost libSystem.B.dylib and pid 1
+ * exited. Retry the already-recovered controller a few times before giving
+ * up; a short delay lets a clock-cycle recovery settle.
+ */
+#define SANTONI_IO_RETRIES        3
+#define SANTONI_IO_RETRY_DELAY_US 2000
+
 static int
 santoni_sdhci_read_blocks(uint64_t lba, uint32_t count, void *buf)
 {
+	static bool retry_logged;
+	int error;
+
 	if (count == 0 || count > BOUNCE_SIZE / SDHCI_BLOCK || lba > UINT32_MAX) {
 		return EINVAL;
 	}
@@ -3514,7 +3536,23 @@ santoni_sdhci_read_blocks(uint64_t lba, uint32_t count, void *buf)
 		    se.sec_count);
 		return EINVAL;
 	}
-	return sdhci_read_pio(count == 1 ? 17 : 18, (uint32_t)lba, count, buf);
+	for (int attempt = 1;; attempt++) {
+		error = sdhci_read_pio(count == 1 ? 17 : 18, (uint32_t)lba,
+		    count, buf);
+		if (!error || attempt >= SANTONI_IO_RETRIES) {
+			break;
+		}
+		if (!retry_logged) {
+			retry_logged = true;
+			printf("WHYRED SDHCI: read of %u blocks at 0x%llx "
+			    "failed (%d) but the controller is recovered; "
+			    "retrying (attempt %d/%d)\n", count,
+			    (unsigned long long)lba, error, attempt + 1,
+			    SANTONI_IO_RETRIES);
+		}
+		delay(SANTONI_IO_RETRY_DELAY_US);
+	}
+	return error;
 }
 
 static int
@@ -3539,7 +3577,13 @@ santoni_sdhci_write_blocks(uint64_t lba, uint32_t count, const void *buf)
 		    se.sec_count);
 		return EINVAL;
 	}
-	return sdhci_write_pio((uint32_t)lba, count, buf);
+	for (int attempt = 1;; attempt++) {
+		int error = sdhci_write_pio((uint32_t)lba, count, buf);
+		if (!error || attempt >= SANTONI_IO_RETRIES) {
+			return error;
+		}
+		delay(SANTONI_IO_RETRY_DELAY_US);
+	}
 
 refuse:
 	printf("WHYRED SDHCI: refusing write of %u blocks at 0x%llx "
