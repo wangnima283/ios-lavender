@@ -437,17 +437,20 @@ nvt_poll(void)
 	int x[TOUCH_MAX] = {0}, y[TOUCH_MAX] = {0};
 
 	for (unsigned i = 0; i < TOUCH_MAX; i++) {
-		const uint8_t *r = &p[6 * i];
-		unsigned id = r[0] >> 3;
-		unsigned status = r[0] & 0x07;
+		unsigned pos = 1 + 6 * i;
+		if (pos + 3 >= sizeof(p)) {
+			break;
+		}
+		unsigned id = p[pos] >> 3;
+		unsigned status = p[pos] & 0x07;
 		if (id == 0 || id > TOUCH_MAX) {
 			continue;
 		}
 		if (status != 1 && status != 2) {
 			continue;
 		}
-		unsigned px = ((unsigned)r[1] << 4) | (r[3] >> 4);
-		unsigned py = ((unsigned)r[2] << 4) | (r[3] & 0x0F);
+		unsigned px = ((unsigned)p[pos + 1] << 4) | (p[pos + 3] >> 4);
+		unsigned py = ((unsigned)p[pos + 2] << 4) | (p[pos + 3] & 0x0F);
 		if (px > st.nvt_xmax || py > st.nvt_ymax) {
 			if (st.nvt_errs++ < 5) {
 				printf("LAVENDER TOUCH: NVT drop id=%u %u,%u\n", id, px, py);
@@ -457,7 +460,11 @@ nvt_poll(void)
 		unsigned idx = id - 1;
 		mask |= 1u << idx;
 		x[idx] = (int)px;
-		y[idx] = (int)py;
+		int sy = (int)(((uint64_t)py * 2400u) / (st.nvt_ymax ? st.nvt_ymax : 2340u));
+		if (sy > 2399) {
+			sy = 2399;
+		}
+		y[idx] = sy;
 	}
 	touch_report(mask, x, y);
 	return 0;
