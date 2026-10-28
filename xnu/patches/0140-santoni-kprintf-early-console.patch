@@ -50,7 +50,7 @@ diff --git a/pexpert/arm/pe_serial.c b/pexpert/arm/pe_serial.c
 index 19f27cd..406ed6b 100644
 --- a/pexpert/arm/pe_serial.c
 +++ b/pexpert/arm/pe_serial.c
-@@ -810,9 +810,60 @@ SECURITY_READ_ONLY_LATE(static struct pe_serial_functions) sweet_fbcon_serial_fu
+@@ -810,9 +810,61 @@ SECURITY_READ_ONLY_LATE(static struct pe_serial_functions) sweet_fbcon_serial_fu
  	.device = SERIAL_SWEET_FBCON
  };
  
@@ -60,9 +60,7 @@ index 19f27cd..406ed6b 100644
 +static void
 +santoni_early_serial_init(void)
 +{
-+	extern bool disable_kprintf_output;
 +	extern bool disable_serial_output;
-+	disable_kprintf_output = false;
 +	disable_serial_output = false;
 +}
 +
@@ -75,7 +73,10 @@ index 19f27cd..406ed6b 100644
 +static void
 +santoni_early_serial_tx_data(uint8_t c)
 +{
-+	sweet_early_putc((char)c);
++	extern bool disable_kprintf_output;
++	if (!disable_kprintf_output) {
++		sweet_early_putc((char)c);
++	}
 +}
 +
 +static unsigned int

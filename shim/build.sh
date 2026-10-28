@@ -86,12 +86,14 @@ EXTRA_CMDLINE="${EXTRA_CMDLINE:-}"
 # Unset means "spam", so a hand build keeps the old command line.
 KPRINTF_SPAM="${KPRINTF_SPAM--enable_kprintf_spam}"
 [ -n "$KPRINTF_SPAM" ] && KPRINTF_SPAM="$KPRINTF_SPAM "
-# lavender: match the command line of the image that last booted to the
-# lockscreen. disable_kprintf_output=1 keeps the boot log off the panel
-# (the SYSTEM ring still captures it: 0143 appends before the mute check),
-# and sweetfb_stayon=1 keeps the display from blanking mid-boot.
-if [ "$BOARD_LC" = lavender ]; then
-	CMDLINE="debug=0x14e serial=1 disable_kprintf_output=1 cpus=4 sweetfb_native=1 sweetfb_stayon=1 sweetfb_hz=60 sweetsample=- sweetcpufreq=0 sweetbattery=0 rd=$ROOTDEV emmcroot=userdata rootrw=1 amfi_get_out_of_my_way=1 amfi_allow_any_signature=1 ignition_level=1 wdt_test=no_user_checkin wdt=-1 -v keepsyms=1 $BOARD_LC $EXTRA_CMDLINE"
+# lavender: the command line that actually reached the lockscreen
+# (sweethidtest=15 gives backboardd a synthetic Home press so the panel is
+# woken; disable_kprintf_output=1 keeps the screen completely clean of log spam
+# and eliminates font blitting/scrolling lag, while the SYSTEM log ring still captures all logs).
+if [ -n "${CMDLINE:-}" ]; then
+	:	# caller supplied a complete line (manual bring-up builds)
+elif [ "$BOARD_LC" = lavender ]; then
+	CMDLINE="debug=0x14e serial=3 cpus=4 cs_enforcement_disable=1 amfi_get_out_of_my_way=1 amfi_allow_any_signature=1 disable_kprintf_output=1 sweetfb_native=1 sweetfb_stayon=1 sweethidtest=15 sweetfb_hz=60 sweetsample=- sweetcpufreq=0 sweetbattery=0 rd=$ROOTDEV emmcroot=userdata emmcrw=1 rootrw=1 unentitled_ios_sim_launch=1 ignition_level=1 wdt_test=no_user_checkin launchd_unsecure_cache=1 wdt=-1 -v keepsyms=1 sweetscan=backboardd,SpringBoard $BOARD_LC $EXTRA_CMDLINE"
 else
 	CMDLINE="debug=0x14e serial=3 disable_kprintf_output=0 ${KPRINTF_SPAM}sweetfb_native=1 sweetcpufreq=0 sweetbattery=0 rd=$ROOTDEV -v keepsyms=1 $BOARD_LC $EXTRA_CMDLINE"
 fi
