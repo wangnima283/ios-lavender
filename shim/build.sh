@@ -93,7 +93,7 @@ KPRINTF_SPAM="${KPRINTF_SPAM--enable_kprintf_spam}"
 if [ -n "${CMDLINE:-}" ]; then
 	:	# caller supplied a complete line (manual bring-up builds)
 elif [ "$BOARD_LC" = lavender ]; then
-	CMDLINE="debug=0x14e serial=1 cpus=4 cs_enforcement_disable=1 amfi_get_out_of_my_way=1 amfi_allow_any_signature=1 disable_kprintf_output=1 sweetfb_native=1 sweetfb_stayon=1 sweethidtest=10 sweetfb_hz=60 sweetsample=- sweetcpufreq=0 sweetbattery=0 rd=$ROOTDEV emmcroot=userdata emmcrw=1 rootrw=1 unentitled_ios_sim_launch=1 ignition_level=1 wdt_test=no_user_checkin launchd_unsecure_cache=1 wdt=-1 -v keepsyms=1 $BOARD_LC"
+	CMDLINE="debug=0x14e serial=1 cpus=4 cs_enforcement_disable=1 amfi_get_out_of_my_way=1 amfi_allow_any_signature=1 disable_kprintf_output=1 sweetfb_native=1 sweetfb_stayon=1 sweethidtest=10 sweetouchtest=10 sweetfb_hz=60 sweetsample=- sweetcpufreq=0 sweetbattery=0 rd=$ROOTDEV emmcroot=userdata emmcrw=1 rootrw=1 unentitled_ios_sim_launch=1 ignition_level=1 wdt_test=no_user_checkin launchd_unsecure_cache=1 wdt=-1 -v keepsyms=1 $BOARD_LC"
 	[ -n "$EXTRA_CMDLINE" ] && CMDLINE="$CMDLINE $EXTRA_CMDLINE"
 else
 	CMDLINE="debug=0x14e serial=3 disable_kprintf_output=0 sweetlog=1 ${KPRINTF_SPAM}sweetcpufreq=0 sweetbattery=0 rd=$ROOTDEV -v keepsyms=1 $BOARD_LC $EXTRA_CMDLINE"

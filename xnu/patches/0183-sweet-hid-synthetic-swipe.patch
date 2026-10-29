@@ -1,0 +1,81 @@
+diff --git a/iokit/Kernel/arm/hid/SweetHID.cpp b/iokit/Kernel/arm/hid/SweetHID.cpp
+index d2f4fa1..c438d69 100644
+--- a/iokit/Kernel/arm/hid/SweetHID.cpp
++++ b/iokit/Kernel/arm/hid/SweetHID.cpp
+@@ -366,6 +366,11 @@ protected:
+ 	virtual UInt32 getPrimaryUsage() APPLE_KEXT_OVERRIDE { return kHIDUsage_Dig_TouchScreen; }
+ 	virtual UInt32 getProductID() APPLE_KEXT_OVERRIDE { return 2; }
+ private:
++	static void swipeFired(OSObject *owner, IOTimerEventSource *sender);
++	IOTimerEventSource *fSwipe;
++	UInt32 fSwipeSecs;              /* boot-arg sweetouchtest, 0 = off */
++	UInt32 fSwipeCount;
++	int    fSwipeStep;              /* -1 idle, 0..steps */
+ 	IOLock *fLock;
+ 	int fLogicalW, fLogicalH, fOffX, fOffY;
+ 	bool fDown[SWEET_TOUCH_FINGERS];
+@@ -442,6 +447,14 @@ SweetHIDTouch::start(IOService *provider)
+ 	setProperty("DisplayIntegrated", kOSBooleanTrue);
+ 	setProperty("SurfaceWidth", (unsigned long long)(68 << 16), 32);	/* mm, 16.16 */
+ 	setProperty("SurfaceHeight", (unsigned long long)(151 << 16), 32);
++	fSwipeStep = -1;
++	fSwipeCount = 0;
++	if (PE_parse_boot_argn("sweetouchtest", &fSwipeSecs, sizeof(fSwipeSecs)) && fSwipeSecs) {
++		fSwipe = IOTimerEventSource::timerEventSource(this, &SweetHIDTouch::swipeFired);
++		if (fSwipe && _hidWorkLoop->addEventSource(fSwipe) == kIOReturnSuccess) {
++			fSwipe->setTimeoutMS(fSwipeSecs * 1000);
++		}
++	}
+ 	gSweetTouch = this;
+ 	registerService();
+ 	IOLog("SWEET HID: touch registered\n");
+@@ -538,6 +551,49 @@ SweetHIDTouch::touch(int finger, bool down, int x, int y)
+ 	collection->release();
+ }
+ 
++/*
++ * Boot-arg sweetouchtest=N: every N seconds send one synthetic swipe up from
++ * the bottom edge, the gesture that unlocks the lock screen. It proves the
++ * digitizer path (SweetHIDTouch -> backboardd -> SpringBoard) with no touch
++ * hardware at all: whyred has no I2C/GPIO driver yet, so without this the
++ * digitizer never reports a finger and the lock screen cannot be moved.
++ */
++void
++SweetHIDTouch::swipeFired(OSObject *owner, IOTimerEventSource *sender)
++{
++	SweetHIDTouch *self = (SweetHIDTouch *)owner;
++	const int steps = 12;
++	int step = self->fSwipeStep;
++
++	if (step < 0) {
++		self->fSwipeStep = step = 0;
++		IOLog("SWEET HID: synthetic swipe %u (no touch hardware)\n", self->fSwipeCount + 1);
++	}
++	/*
++	 * A home-gesture touch must begin inside the bottom edge band: touch()
++	 * marks only y > 2399-48 as kIOHIDDigitizerEventFromEdgeTip, and UIKit
++	 * derives UITouch's edge type from that bit. Start at 2390, lift at
++	 * 800 (well past the unlock threshold) after twelve 25 ms steps.
++	 */
++	if (step == 0) {
++		self->touch(0, true, 540, 2390);
++	} else if (step <= steps) {
++		int y = 2390 - (step * (2390 - 800)) / steps;
++		self->touch(0, true, 540, y);
++	} else {
++		self->touch(0, false, 540, 800);
++		self->fSwipeStep = -1;
++		if (++self->fSwipeCount < 30) {
++			IOLog("SWEET HID: synthetic swipe %u sent, next in %u s\n",
++			    self->fSwipeCount, self->fSwipeSecs);
++			sender->setTimeoutMS(self->fSwipeSecs * 1000);
++		}
++		return;
++	}
++	self->fSwipeStep++;
++	sender->setTimeoutMS(25);
++}
++
+ /* key: 0 power (side button), 1 volume up, 2 volume down, 3 home */
+ extern "C" void
+ sweet_hid_key(int key, int down)

@@ -11,7 +11,7 @@ on:
         default: DEVELOPMENT
       machine_config:
         description: xnu MACHINE_CONFIG (WHYRED or LAVENDER)
-        default: WHYRED
+        default: LAVENDER
       keep_going:
         description: make -k (collect all compile errors in one run)
         default: "true"
@@ -40,7 +40,7 @@ env:
   DXB_SHA: 663906528d1cd5ea8fde7de6f16de73db9511549
   MACOS_VERSION: ${{ inputs.macos_version || '13.5' }}
   KERNEL_CONFIG: ${{ inputs.kernel_config || 'DEVELOPMENT' }}
-  MACHINE_CONFIG: ${{ inputs.machine_config || 'WHYRED' }}
+  MACHINE_CONFIG: ${{ inputs.machine_config || 'LAVENDER' }}
   # ccache: xnu is ~2000 compiles; a patch usually changes a few of them
   CCACHE_DIR: ${{ github.workspace }}/.ccache
   CCACHE_BASEDIR: ${{ github.workspace }}
@@ -95,6 +95,8 @@ jobs:
 
       - name: Deps
         run: |
+          git config --global http.postBuffer 524288000
+          git config --global http.version HTTP/1.1
           brew install jq gum bash cmake ninja ccache
           # build.sh only checks that xcodes exists (Xcode is preinstalled); no bottle on macOS 14
           printf '#!/bin/sh\nexit 0\n' | sudo tee /usr/local/bin/xcodes >/dev/null
@@ -141,7 +143,7 @@ jobs:
           if [ ! -f build.log ]; then
             echo "no build.log (build never started)"; exit 0
           fi
-          if grep -E 'Skipping patch .*(014[2345689]|015[0-9]|016[0-9]|017[0-9])-' build.log; then
+          if grep -E 'Skipping patch .*(014[2345689]|015[0-9]|016[0-9]|017[0-9]|018[0-9])-' build.log; then
             echo "::error::a critical patch was skipped by the build"
             exit 1
           fi
@@ -228,7 +230,6 @@ jobs:
 
       - name: Build the boot image
         env:
-          BOARD: whyred
           CC: clang
           LD: ld.lld
           OBJCOPY: aarch64-linux-gnu-objcopy
@@ -243,9 +244,11 @@ jobs:
           # fast image and a diagnostic one from the same kernel.
         run: |
           set -euo pipefail
-          KERNEL=xnu/out/kernel.development.whyred
-          test -f "$KERNEL" || { echo "::error::no whyred kernel in the artifact"; ls -lR xnu/out; exit 1; }
-          test -f resources/whyred_dtb.bin || { echo "::error::resources/whyred_dtb.bin missing"; exit 1; }
+          BOARD_LC=$(echo "${{ inputs.machine_config || 'LAVENDER' }}" | tr '[:upper:]' '[:lower:]')
+          export BOARD="$BOARD_LC"
+          KERNEL=xnu/out/kernel.development.$BOARD_LC
+          test -f "$KERNEL" || { echo "::error::no $BOARD_LC kernel in the artifact"; ls -lR xnu/out; exit 1; }
+          test -f resources/${BOARD_LC}_dtb.bin || { echo "::error::resources/${BOARD_LC}_dtb.bin missing"; exit 1; }
           (cd xnu/out && sha256sum -c SHA256SUMS)
 
           # Common switches. cs_enforcement_disable=1 is XNU's own switch
@@ -412,11 +415,11 @@ jobs:
               echo "| $(basename "$f") | $(stat -c%s "$f") B | $(sha256sum "$f" | cut -d' ' -f1) |"
             done
             echo
-            echo "Kernel zip: \`xnu-kernel\` artifact. Image zip: \`whyred-boot-img\` artifact."
+            echo "Kernel zip: \`xnu-kernel\` artifact. Image zip: \`boot-img\` artifact."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: whyred-boot-img
+          name: boot-img
           path: dist/
           if-no-files-found: error

@@ -1,0 +1,23 @@
+--- a/bsd/dev/santoni_sdhci.c
++++ b/bsd/dev/santoni_sdhci.c
+@@ -4016,6 +4016,20 @@ santoni_sdhci_ioctl(__unused dev_t dev, u_long cmd, caddr_t data,
+ 	case DKIOCGETMAXSEGMENTCOUNTWRITE:
+ 		*o = 1;
+ 		return 0;
++	case DKIOCSYNCHRONIZE:
++	case DKIOCSYNCHRONIZECACHE:
++		/*
++		 * HFS asks for this barrier before it advances the journal
++		 * head (write_journal_header). Returning ENOTTY (0x19) made
++		 * every checkpoint print
++		 * "jnl: b(2, 0): flushing fs disk buffer returned 0x19".
++		 *
++		 * This driver never sets EXT_CSD CACHE_CTRL, so the card's
++		 * write cache stays disabled and a CMD25 transfer is already
++		 * in the media when it completes: there is nothing left to
++		 * flush. A RAM-disk (rd=md0) build answers the same way.
++		 */
++		return 0;
+ 	default:
+ 		return ENOTTY;
+ 	}

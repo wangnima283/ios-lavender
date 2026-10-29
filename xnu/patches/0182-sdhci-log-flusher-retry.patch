@@ -1,0 +1,27 @@
+--- a/bsd/dev/santoni_sdhci.c
++++ b/bsd/dev/santoni_sdhci.c
+@@ -4529,9 +4529,21 @@ santoni_log_thread(__unused void *arg, __unused wait_result_t wr)
+ 			pos += (uint64_t)(blk + n) * SDHCI_BLOCK - off;
+ 		}
+ 		if (error) {
+-			printf("WHYRED LOG: ring write failed (%d), stopping "
+-			    "flusher\n", error);
+-			return;
++			/*
++			 * Do not stop here. fsck and the root filesystem read
++			 * the same card for minutes; a CMD24 issued into that
++			 * traffic times out, and returning leaves the tail of
++			 * the boot - the only place the late exec lines live -
++			 * out of the ring for good. `flushed` is left alone, so
++			 * the next pass rewrites the same range; ring writes are
++			 * idempotent.
++			 */
++			static int ring_errors;
++			if (ring_errors++ % 30 == 0) {
++				printf("WHYRED LOG: ring write failed (%d), "
++				    "retrying\n", error);
++			}
++			continue;
+ 		}
+ 		herr = santoni_log_write_header(base, total, ++seq);
+ 		if (herr && !header_warned) {

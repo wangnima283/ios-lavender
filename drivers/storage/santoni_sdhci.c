@@ -4017,6 +4017,20 @@ santoni_sdhci_ioctl(__unused dev_t dev, u_long cmd, caddr_t data,
 	case DKIOCGETMAXSEGMENTCOUNTWRITE:
 		*o = 1;
 		return 0;
+	case DKIOCSYNCHRONIZE:
+	case DKIOCSYNCHRONIZECACHE:
+		/*
+		 * HFS asks for this barrier before it advances the journal
+		 * head (write_journal_header). Returning ENOTTY (0x19) made
+		 * every checkpoint print
+		 * "jnl: b(2, 0): flushing fs disk buffer returned 0x19".
+		 *
+		 * This driver never sets EXT_CSD CACHE_CTRL, so the card's
+		 * write cache stays disabled and a CMD25 transfer is already
+		 * in the media when it completes: there is nothing left to
+		 * flush. A RAM-disk (rd=md0) build answers the same way.
+		 */
+		return 0;
 	default:
 		return ENOTTY;
 	}
@@ -4518,9 +4532,21 @@ santoni_log_thread(__unused void *arg, __unused wait_result_t wr)
 			pos += (uint64_t)(blk + n) * SDHCI_BLOCK - off;
 		}
 		if (error) {
-			printf("WHYRED LOG: ring write failed (%d), stopping "
-			    "flusher\n", error);
-			return;
+			/*
+			 * Do not stop here. fsck and the root filesystem read
+			 * the same card for minutes; a CMD24 issued into that
+			 * traffic times out, and returning leaves the tail of
+			 * the boot - the only place the late exec lines live -
+			 * out of the ring for good. `flushed` is left alone, so
+			 * the next pass rewrites the same range; ring writes are
+			 * idempotent.
+			 */
+			static int ring_errors;
+			if (ring_errors++ % 30 == 0) {
+				printf("WHYRED LOG: ring write failed (%d), "
+				    "retrying\n", error);
+			}
+			continue;
 		}
 		herr = santoni_log_write_header(base, total, ++seq);
 		if (herr && !header_warned) {
