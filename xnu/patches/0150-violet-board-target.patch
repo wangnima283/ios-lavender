@@ -190,7 +190,7 @@ diff --git a/pexpert/pexpert/arm64/Makefile b/pexpert/pexpert/arm64/Makefile
  	BCM2837.h \
  	SANTONI.h \
  	LAVENDER.h \
-+ 	VIOLET.h \
++	VIOLET.h \
  	SWEET.h
 
 diff --git a/pexpert/pexpert/arm64/board_config.h b/pexpert/pexpert/arm64/board_config.h
@@ -211,7 +211,7 @@ diff --git a/pexpert/pexpert/arm64/board_config.h b/pexpert/pexpert/arm64/board_
 +++ b/pexpert/pexpert/arm64/board_config.h
 @@ -118,5 +118,15 @@
  #define CORE_NCTRS                     8
- #endif  /* ARM64_BOARD_CONFIG_SANTONI */
+ #endif  /* ARM64_BOARD_CONFIG_LAVENDER */
  
 +#ifdef ARM64_BOARD_CONFIG_VIOLET
 +#include <pexpert/arm64/VIOLET.h>
