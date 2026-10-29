@@ -32,6 +32,7 @@ MIN_KERNEL_BYTES = 1 << 20      # anything smaller is a stub, not an XNU kernel
 BOARDS = {
     "whyred": {"msm_id": 0x159, "board_ids": (0x30008, 0x10008), "model": "SDM 636"},
     "lavender": {"msm_id": 0x13D, "board_ids": (0x20008,), "model": "SDM 660"},
+    "violet": {"msm_id": 0x163, "board_ids": (0x22,), "model": "SDM 675"},
 }
 
 
