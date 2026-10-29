@@ -2,7 +2,7 @@
 # dxb runs patches/*.sh from the XNU source root before applying *.patch.
 set -euo pipefail
 
-[[ "${MACHINE_CONFIG:-}" == SWEET || "${MACHINE_CONFIG:-}" == SANTONI || "${MACHINE_CONFIG:-}" == LAVENDER || "${MACHINE_CONFIG:-}" == WHYRED ]] || exit 0
+[[ "${MACHINE_CONFIG:-}" == SWEET || "${MACHINE_CONFIG:-}" == SANTONI || "${MACHINE_CONFIG:-}" == LAVENDER || "${MACHINE_CONFIG:-}" == WHYRED || "${MACHINE_CONFIG:-}" == VIOLET ]] || exit 0
 [[ "${MACOS_VERSION:-}" == 13.5 ]] || {
     echo 'SWEET libpthread integration requires xnu-8796.141.3 (macOS 13.5)' >&2
     exit 1
