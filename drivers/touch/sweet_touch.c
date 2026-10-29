@@ -328,22 +328,6 @@ static void
 touch_report(uint32_t mask, const int *x, const int *y)
 {
 	static unsigned logged;
-	static unsigned debounce_cnt;
-
-	if (!mask) {
-		if (!st.active) {
-			debounce_cnt = 0;
-			return;
-		}
-		if (++debounce_cnt < 8) {
-			/* Debounce: keep fingers down across interleaved empty polls (~64ms) */
-			return;
-		}
-		debounce_cnt = 0;
-	} else {
-		debounce_cnt = 0;
-	}
-
 	for (unsigned id = 0; id < TOUCH_MAX; ++id) {
 		uint32_t bit = 1u << id;
 		if (mask & bit) {
@@ -467,8 +451,12 @@ nvt_poll(void)
 		}
 		unsigned px = ((unsigned)p[pos + 1] << 4) | (p[pos + 3] >> 4);
 		unsigned py = ((unsigned)p[pos + 2] << 4) | (p[pos + 3] & 0x0F);
-		if (px > st.nvt_xmax) px = st.nvt_xmax;
-		if (py > st.nvt_ymax) py = st.nvt_ymax;
+		if (px > st.nvt_xmax || py > st.nvt_ymax) {
+			if (st.nvt_errs++ < 5) {
+				printf("LAVENDER TOUCH: NVT drop id=%u %u,%u\n", id, px, py);
+			}
+			continue;
+		}
 		unsigned idx = id - 1;
 		mask |= 1u << idx;
 		x[idx] = (int)px;
