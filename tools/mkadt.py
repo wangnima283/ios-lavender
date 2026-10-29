@@ -41,6 +41,13 @@ BOARDS = {
         'ecid': 0x5748595245440001,          # 'WHYRED\0\1', synthetic
         'manifest': b'whyred boot manifest',
     },
+    'violet': {
+        'name': 'violet', 'soc': 'sdm675',
+        'panel_w': 1080, 'panel_h': 2340,
+        'cpu_hz': 2000000000,
+        'ecid': 0x56494f4c45540001,          # 'VIOLET\0\1', synthetic
+        'manifest': b'violet boot manifest',
+    },
 }
 DEFAULT_BOARD = 'lavender'
 FB_W, FB_H = BOARDS[DEFAULT_BOARD]['panel_w'], BOARDS[DEFAULT_BOARD]['panel_h']
