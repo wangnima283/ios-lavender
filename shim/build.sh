@@ -8,7 +8,8 @@ BOARD="${BOARD:-whyred}"
 case "$BOARD" in
 	whyred|WHYRED)   BOARD_LC=whyred;  BOARD_DEFINE=-DBOARD_WHYRED ;;
 	lavender|LAVENDER) BOARD_LC=lavender; BOARD_DEFINE=-DBOARD_LAVENDER ;;
-	*) echo "error: BOARD must be whyred or lavender (got '$BOARD')" >&2; exit 2 ;;
+	violet|VIOLET)   BOARD_LC=violet;  BOARD_DEFINE=-DBOARD_VIOLET ;;
+	*) echo "error: BOARD must be whyred, lavender or violet (got '$BOARD')" >&2; exit 2 ;;
 esac
 
 PAYLOAD="${1:-}"

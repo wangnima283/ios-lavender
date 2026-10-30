@@ -3,7 +3,7 @@
 
 Only what the early boot path actually reads; MMIO addresses come from the
 lavender (Redmi Note 7, SDM660) and whyred (Redmi Note 5, SDM636) live FDTs.
-Usage:  mkadt.py OUT.adt [--board lavender|whyred] [--dump] [--qemu] [--native]
+Usage:  mkadt.py OUT.adt [--board lavender|whyred|violet] [--dump] [--qemu] [--native]
 """
 import hashlib, os, struct, sys
 
@@ -45,6 +45,7 @@ BOARDS = {
         'name': 'violet', 'soc': 'sdm675',
         'panel_w': 1080, 'panel_h': 2340,
         'cpu_hz': 2000000000,
+        'fb_base': 0x9c000000,               # SM6150 splash is 18MB lower
         'ecid': 0x56494f4c45540001,          # 'VIOLET\0\1', synthetic
         'manifest': b'violet boot manifest',
     },
@@ -94,6 +95,7 @@ def build(seed=None, qemu=False, native=False, board=DEFAULT_BOARD):
     cfg = BOARDS[board]
     fb_w, fb_h, fb_stride = cfg['panel_w'], cfg['panel_h'], cfg['panel_w'] * 4
     fb_size = fb_stride * fb_h
+    fb_base = cfg.get('fb_base', FB)
     phys_base, mem_size = PHYS_BASE, MEM_SIZE
     gicd, gicr, timebase = (QEMU_GICD, QEMU_GICR, QEMU_TIMEBASE) if qemu else (GICD, GICR, TIMEBASE)
     seed = seed if seed is not None else os.urandom(64)
@@ -182,7 +184,7 @@ def build(seed=None, qemu=False, native=False, board=DEFAULT_BOARD):
 
     fbcon = node('sweet-fbcon', [
         ph(),
-        ('reg', u64(FB, fb_size)),
+        ('reg', u64(fb_base, fb_size)),
         ('width', u32(fb_w)),
         ('height', u32(fb_h)),
         ('stride', u32(fb_stride)),
@@ -233,7 +235,7 @@ if __name__ == '__main__':
     if '--board' in args:
         at = args.index('--board')
         if at + 1 >= len(args):
-            print("mkadt.py: --board needs lavender or whyred", file=sys.stderr)
+            print("mkadt.py: --board needs lavender, whyred or violet", file=sys.stderr)
             sys.exit(2)
         board = args[at + 1].lower()
         del args[at:at + 2]
@@ -242,7 +244,7 @@ if __name__ == '__main__':
               file=sys.stderr)
         sys.exit(2)
     if not args:
-        print("Usage: mkadt.py OUT.adt [--board lavender|whyred] [--dump] [--qemu] [--native]",
+        print("Usage: mkadt.py OUT.adt [--board lavender|whyred|violet] [--dump] [--qemu] [--native]",
               file=sys.stderr)
         sys.exit(1)
     root = build(qemu='--qemu' in args, native='--native' in args, board=board)
