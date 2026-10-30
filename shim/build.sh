@@ -174,10 +174,20 @@ python3 ../tools/mkbootimg.py \
 # payload still said rd=md0.
 img_size=$(wc -c < out/shim-boot.img)
 img_limit=6291456
-if [ "$BOARD_LC" = lavender ]; then
+case "$BOARD_LC" in
+lavender)
 	# lavender's ABL accepted a 6705152-byte image; keep a margin below that
-	img_limit=7340032
-fi
+	img_limit=7340032 ;;
+violet)
+	# Same ceiling for the same reason, plus one specific to this board: the
+	# shipped image is the second pass (IMAGE_GZ, zopfli), while the first
+	# pass packs a gzip -9 Image that lands at 6463488 bytes for violet and
+	# therefore cannot pass whyred's 6 MiB gate - zopfli would never run.
+	# violet's ABL limit is unmeasured on hardware; if fastboot ever refuses
+	# the image, shrink the payload instead of raising this.  The 6 MiB gate
+	# for the *shipped* image still lives in .github/workflows/xnu.yml.
+	img_limit=7340032 ;;
+esac
 if [ "$img_size" -gt "$img_limit" ]; then
 	echo "error: out/shim-boot.img is $img_size bytes; $BOARD_LC limit is $img_limit" >&2
 	exit 1
